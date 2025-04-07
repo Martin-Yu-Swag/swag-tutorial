@@ -18,19 +18,27 @@ eg. in swag project: `./libs`
 
 - [boltons.dictuils.FronzenDict](https://boltons.readthedocs.io/en/latest/dictutils.html#boltons.dictutils.FrozenDict)
 
+- boltons.dictutils.subdict
+
+- boltons.dictutils.OrderedMultiDict
+
 - [boltons.cacheutils.cachedproperty](https://boltons.readthedocs.io/en/latest/cacheutils.html#boltons.cacheutils.cachedproperty)
 
 - [boltons.iterutils.bucketize](https://boltons.readthedocs.io/en/latest/iterutils.html#boltons.iterutils.bucketize)
   - Group values in the src iterable by the value returned by key.
   - `bucketize(range(5), lambda x: x%2 == 1)` -> `{False: [0, 2, 4], True: [1, 3]}`
 
+- boltons.iterutils.chunked
+
+- boltons.iterutils.unique_iter
+
 - boltons.iterutils.first
 
-- boltons.dictutils.OrderedMultiDict
+- boltons.namedutils.namedtuple
 
+### Flask
 
-
-### Flask: `after_app_request`
+#### `after_app_request`
 
 [Official doc](https://flask.palletsprojects.com/en/stable/api/#flask.Flask.after_request)
 
@@ -38,6 +46,21 @@ eg. in swag project: `./libs`
 - `after_app_request` however will execute after every request
   (equals to `app.after_request` even register on blueprint)
 
+#### app.route("/url", default={})
+
+default is passed kwargs in `werkzeug/routing/rules.py::Rule` constructor
+
+> An optional dict with defaults for other rules with the same endpoint.
+> This is a bit tricky but useful if you want to have unique URLs:
+> ```py
+> url_map = Map([
+>    Rule('/all/', defaults={'page': 1}, endpoint='all_entries'),
+>    Rule('/all/page/<int:page>', endpoint='all_entries')
+>  ])
+> ```
+
+But this seems to be used for providing default url path params...
+Why "validators" exist?
 
 # Question:
 
@@ -49,3 +72,5 @@ A:
 Nginx will automatically weaken etag if gzip is on.
 
 https://stackoverflow.com/a/63311338/20307835
+
+# Python `yield`
