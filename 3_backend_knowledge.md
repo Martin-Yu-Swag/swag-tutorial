@@ -278,23 +278,307 @@ Too many possible variations per page
   - `swag/decorators/caches.py::memoized`
     使用在 instance function cache，處理 cache key 時移除 mutable (aka non-hashable) arg (eg. self, task)
 
+---
+
 # W5-W6
 
-- ACID
-    - https://www.freecodecamp.org/news/acid-databases-explained/
-    - https://www.mongodb.com/basics/acid-transactions
+## ACID
 
-- Common DB things
-    - Queries
-    - Indexes
-        - Why are indexes important
-        - Why don’t we just index all the fields?
-        - What are the differences between index types
-    - Data modeling
-    - What are some different types of queries that we use in our application?
-    - Background asynchronous transport
-        - What are background asynchronous transport?
-        - What use cases do we have for background transport in our application?
+### [ACID Databases – Atomicity, Consistency, Isolation & Durability Explained](https://www.freecodecamp.org/news/acid-databases-explained/)
+
+> while a lot of DBMS may say they are ACID compliant,
+> the implementation of this compliance can vary.
+
+#### What are Transactions?
+
+> Transactions serve a single purpose: they make sure a system is fault tolerant
+
+> Transaction is a collection of operations (reads and writes)
+> that are treated as a "single" logical operation.
+
+#### What Does Atomicity Mean?
+
+> all queries in a transaction must succeed for the transaction to succeed.
+
+-> All or None, Partial failures not allowed.
+
+#### What Does Consistency Mean?
+
+> consistency in data (integrity)
+> Referential integrity is a method of ensuring that relationships between tables remain consistent.
+
+-> Usually enforced through the use of **foreign keys**.
+
+- In comparison with A/I/D, consistency is actually not a property
+  intrinsic to the DB.
+
+#### What Does Isolation Mean?
+
+> A guarantee that concurrently running transactions should not interfere with each other.
+
+**Read Committed**
+
+- No Dirty Reads
+- No Dirty Writes
+
+**Repeatable Read**
+
+> guarantees that if a transaction reads a row of data, any subsequent reads of that same row of data within the same transaction will yield the same result, regardless of changes made by other transactions.
+
+- The repeatable read isolation level prevents "fuzzy reads".
+  (read a diff value after other transaction commit made)
+
+- Fuzzy reads are bad for long-running, read-only transactions
+  (eg. Backup or analytical queries)
+
+- usually implemented by the DBMS by reading from a snapshot
+
+#### What Does Durability Mean?
+
+> guarantee that changes made by a committed transaction must not be lost.
+
+---
+
+## [数据库管理系统 ACID 属性指南](https://www.mongodb.com/basics/acid-transactions)
+
+### 什么是 ACID 事务？
+
+事务 = transaction
+
+單個事務 / 多事務
+
+### 原子性 Atomicity
+
+In MongoDB:
+
+- 写入操作在**单个文档级别上**是原子性的
+- 分布式事务才支持多个文档读写操作原子性 (replica / shard)
+
+### 一致性 Consistency
+
+In MongoDB:
+
+- 灵活地规范化或复制数据
+- 若模式中存在重复数据，则开发人员必须决定如何在多个集合中保持重复数据的一致性
+
+Solution:
+
+- Transaction
+- Embedded Document
+- Atlas Database Triggers
+  - latency occur, but guarantee Eventual consistency
+
+### 隔離性 Isolation
+
+In MongoDB:
+
+- 快照隔离 (Snapshot Isolation)
+- [Transactions and Read Concern](https://www.mongodb.com/docs/manual/core/transactions/#transactions-and-read-concern)
+- [Transactions and Write Concern](https://www.mongodb.com/docs/manual/core/transactions/#transactions-and-write-concern)
+  -> 设定适当的读关注和写关注级别
+
+### 持久性 Durability
+
+In MongoDB:
+
+> 创建一个 **OpLog**，其中包含每次“写入”的磁盘位置和更改的字节。
+> 如果在写入事务期间发生不可预见的事件（例如停电），则可以在系统重新启动时使用 **OpLog** 来重放关机前未刷新到磁盘的所有写入操作。
+> **OpLog** 具有幂等性，可以多次重试。
+
+---
+
+## Common DB things
+
+### Queries
+
+### Indexes
+
+- Why are indexes important
+  A: To avoid scanning the entire table for every queries.
+
+- Why don’t we just index all the fields?
+  A: 
+    - index take space for storage
+    - most of the time an query will only start scanning from certain index
+
+- What are the differences between index types
+
+#### [SQL Index](https://reliasoftware.com/blog/types-of-indexes-in-sql)
+
+##### Clustered Indexes
+
+- A clustered index **sorts and stores the data rows** of the table based on the key values
+- There can be only 1 clustered index per table since data rows already sorted and stored by the index key
+  -> the actual data is **stored in the leaf nodes** of the index!
+- The clustered index key is typically table's PK
+
+- Advantages:
+  - Efficient for range queries (on index)
+  - Faster data retrieval for queries that require sorted data 
+    (since index leaf itself stored the hole row data)
+  
+- Disadvantages:
+  - Slower performance C,U,D operations as the physical order of rows needs to be maintained
+  - Only 1 clustered index per table
+
+##### Non-Clustered Indexes
+
+- Creates a separate structure that points to the actual data rows
+- Multiple non-clustered indexes can be created on a single table
+- The data rows are not physically sorted to match the index;
+  index contains pointers to the actual data rows
+
+- Advantages
+  - Faster retrieval of data for queries involving columns other than the primary key:
+  - Multiple non-clustered indexes can be created per table
+
+- Disadvantages
+  - Takes up additional storage space
+  - Can slow down data modification operations due to the need to update the index
+
+##### Unique Indexes
+
+> A unique index ensures that the values in the indexed column(s) are unique across the table, which helps maintain data integrity.
+
+- Prevents duplicate values in the indexed columns
+- Often used to enforce unique constraints on tables
+- can be created on a combination of columns to enforce uniqueness across multiple fields.
+
+Advantages:
+
+- Data Integrity
+- Efficient Data Retrieval
+
+Disadvantages:
+
+- Overhead on Data Modifications
+- Storage Requirements
+
+##### Full-Text Indexes
+
+- used for text-searching capabilities.
+- allow for efficient searching of large text columns and are useful for implementing search functionality
+- Optimized for searching text data
+- Supports advanced search options like 
+  - full-text search
+  - prefix searches
+  - proximity searches
+- Support for Natural Language Queries
+
+Advantages:
+
+- Efficient Text Searches
+- Advanced Search Capabilities
+
+Disadvantages:
+
+- Resource Intensive (for CPU & RAM)
+- Maintenance Overhead
+
+##### Composite Indexes
+
+> Composite indexes are indexes on multiple columns.
+
+- Column Order Matters!
+
+Advantages:
+
+- Optimizes Multi-Column Queries
+- Reduces the Number of Indexes Needed
+
+Disadvantages:
+
+- Larger Index Size
+- Complexity in Index Management
+
+##### Filtered Indexes
+
+> Filtered indexes are non-clustered indexes that include rows that meet a specific condition.
+
+-> Basically just index created with `WHERE` clause, to reduce query data size
+
+```sql
+CREATE INDEX idx_active_users ON Users (UserID) WHERE IsActive = 1;
+```
+
+- Indexes a Subset of Rows
+- Selective Indexing
+
+Advantages
+
+- Improved Performance For Specific Queries
+- Reduced Index Maintenance
+
+Disadvantages
+
+- Limited Use Cases
+- Complex Index Design (optimized through query patterns and data distribution)
+
+#### [MongoDB Index](https://www.mongodb.com/docs/manual/core/indexes/index-types/#std-label-index-types)
+
+- With index, MongoDB need not to scan every document in a collection to return query results
+- Adding an index has negative performance impact for write operations.
+  For collections with a high write-to-read ratio, indexes are expensive.
+- MongoDB indexes use a B-tree data structure
+- The ordering of the index entries supports efficient equality matches and range-based query operations
+- Index has [limitations](https://www.mongodb.com/docs/manual/reference/limits/#std-label-index-limitations).
+- `_id` field as default unique index
+- CANT rename an index; instead, drop it and recreate one.
+- Applications may encounter reduced performance during index builds
+
+##### Single Field Index
+
+- Can create a single-field index on any field in a document,
+  - Top-level document fields
+  - Embedded documents
+  - Fields within embedded documents
+
+- Can specify index when create:
+  - The field on which to create the index
+  - The sort order for the indexed values (ascending or descending).
+
+##### Compound Index
+
+> Compound indexes collect and sort data from two or more fields in each document in a collection.
+
+- Data is grouped by the first field in the index and then by each subsequent field.
+
+> A **covered query** is a query that can be satisfied entirely using an index
+> and does not have to examine any documents, leading to greatly improved performance
+
+##### MultiKey Indexes
+
+> Multikey indexes collect and sort data from fields containing array values.
+> Multikey indexes improve performance for queries on array fields.
+
+- no need to specify the multikey type, just create an index on array field.
+- can create multikey indexes over arrays that hold both scalar values (for example, strings and numbers) and embedded documents
+
+- Unique Multikey Index / Compound Multikey Index
+
+##### Wildcard Indexes
+
+> Use wildcard indexes to support queries against arbitrary or unknown fields.
+
+- queries a collection where field names vary between documents
+- queries an embedded document field where the subfields are not consistent
+- queries documents that share common characteristics with Compound Wildcard Index
+
+##### Hashed Indexes
+
+> Support sharding using hashed shard keys
+
+---
+
+### Data modeling
+
+### What are some different types of queries that we use in our application?
+
+### Background asynchronous transport
+
+- What are background asynchronous transport?
+
+- What use cases do we have for background transport in our application?
 
 # W7-W8
 

@@ -247,6 +247,8 @@ HTTP1.1 > HTTP2 (2015)
 
   - HTTP2 **Request multiplexing** -> 1 TCP conn can send / receive several req in the same time.
 
+- HTTP1 use plain txt messages, while HTTP2 uses binary format, which are divided into frames, and mixed during transmission.
+
 - Prioritize Request
   - HTTP2 Req possess `stream ID`, which allows server to recognize and prioritize the request.
 
@@ -520,13 +522,143 @@ Expires: Wed, 21 Oct 2015 07:28:00 GMT
 
 # W5-W6
 
-- Other HTTP variants
-  - HTTP 2
-  - HTTP 3
+## Other HTTP variants
 
-- Security
-  - TLS
-  - STS
+HTTP 2 vs. HTTP 3
+
+### [What Is HTTP/3 and How Does It Differ from HTTP/2?](https://gcore.com/learning/what-is-http-3)
+
+**HTTP3**
+
+  - established through QUIC over UDP
+    - a transportation protocol
+    - improved performance, reduced latency, enhanced security, better handling of network fluctuations
+
+  - UDP = user datagram protocol
+
+  - header compression (QPACK)
+
+  - connection ID
+
+**HTTP over QUIC**
+
+QUIC runs over UDP - a connectionless, lightweight protocol.
+
+(QUIC = Quick UDP Internet Connection)
+
+- TCP prevents packet loss, yet cause head-of-line blocking
+- QUIC on the other hand, is connection-less -> enables multiplexing at transportation layer, NO HOL blocking issues.
+
+- UDP doesn't require client-server connection, facilitate data delivery via optimal routes, yet no data re-transmission mechanism -> risk of data packet loss
+- QUIC multiplexed connections at the higher level, enable the transmission of **multiple data streams** simultaneously and independently.
+- QUIC prevent data loss in one stream without affecting another.
+
+- QUIC offers bandwidth estimation from both server and client directions
+  - determine how much data a network can transmit within a givin session
+  - forward error correction (FEC) capabilities (via FEC packets) to prevent errs in unstable network -> performance ++
+
+**HTTP2 vs HTTP3**
+
+| | HTTP/2 | HTTP3 |
+| :-: | :-- | :-- |
+|Transport Layer Protocol| TCP | QUIC over UDP |
+| Multiplexing & head-of-line (HOL) | Often encounters head-of-line blocking issues for multiplexed streams due to limitations in byte stream abstraction | Offers multiplexing without head-of-line blocking due to **UDP’s out-of-order delivery** |
+| Error handling | Fewer error handling capabilities | Enhanced error handling capabilities due to QUIC |
+| TLS encryption | optional | embedded in QUIC and by default in HTTP/3 |
+| Connection migration | Does not support connection migration | Supports seamless connection migration via **connection IDs (CIDs)** |
+
+![http2 vs http3 layers](./images/http2-http3-layers.png)
+![http2 vs http3 stacks](./images/http2-http3-stacks.png)
+
+**Header Compression**
+
+- Compress headers (IP/UDP/TCP headers) before sent
+- HTTP2: `HPACK` (prone to HOL)
+- HTTP3: `QPACK`
+
+**Server Push and Prioritization**
+
+- Both support server push
+- HTTP3 clients can set the number of acceptable pushes via **push stream ID** to reduce bandwidth waste.
+
+**Stream Multiplexing**
+
+- Both support multiplexing
+- `HTTP/2` considers every request (including multiplexed ones) as a single byte stream
+  -> cause HOL blocking
+- `HTTP/3` UDP’s out-of-order delivery, each byte stream is transported independently
+
+**TLS Encryption**
+
+TLS = Transport Layer Security
+
+- In HTTP/3, TLS encryption is provided by default via **QUIC’s key exchange mechanism**, which reduce risk of:
+  - eavesdropping
+  - data tampering
+  - and other security threats
+
+**Session Resumption/0-RTT**
+
+- Session resumption
+  reusing parameters used in previous exchanges without reinitiating a full handshake
+
+- `HTTP/2` resumption: TLS session tickets mechanism
+  At least two rounds of handshakes—TCP & TLS before reconnect
+
+- `HTTP/3` resumption: QUIC’s 0-RTT (zero round trip time resumption)
+  Enables clients to send encrypted data in the first packet of the handshake, allowing for faster resumption of previous sessions
+
+**Other features in `HTTP/3`**
+
+- Fewer Handshakes -> Faster Connection
+- Seamless Connection Migration with CID
+  - clients can maintain a stable connection without requiring new handshakes
+  - when switch networks, simply updates the network info while keeping the same CID
+  - particularly beneficial in scenarios such as switches from Wi-Fi
+  - Also reduces the likelihood of connection hijacking or interception
+
+## Security
+
+TLS vs STS
+
+TLS = Transport Layer Security
+STS = Station-to-Station protocol
+
+### TLS
+
+- TLS handshake
+  - asymmetric cipher to establish specific shared key
+  - further communication is encrypted using a symmetric cipher
+  - client and server agree on several params:
+    - supported cipher suites (ciphers and hash func)
+    - server usually then provides identification in the form of a digital certificate (CA) + public encryption key
+    - client generate session key, then encrypt it with public key, transport to server, decrypt with private key
+- After handshake, use session key to encrypt and decrypt messages until the connection close.
+  (symmetric-key algorithm)
+
+### STS key agreement scheme
+
+- establishes a shared secret key between two parties (usually called "stations")
+  over an insecure communication channel.
+- agree on a public key -- a large number
+  -> use this public key to generate a shared secret key
+  -> use secret key to encrypt/decrypt messages
+- Uses:
+  - HTTPS connection
+  - network communication protocol eg. IPSec
+  - Protecting sensitive information during transmission
+  - Ensuring the confidentiality and integrity of sent messages
+
+- basic idea: Diffie-Hellman key exchange protocol
+  - agree on a large prime number p
+  - agree on a primitive root modulo p,g
+  - 2 stations generate their own private keys a/b
+  - 2 stations compute their public keys A/B respectively
+  - 2 stations exchange public keys
+  - Once receive public key, can them compute the shared secret key based on p modulo
+  - Use **private key** to encrypt, and sign the message through hashing
+
+---
 
 # W7-W8
 
