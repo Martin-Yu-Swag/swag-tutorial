@@ -14,6 +14,10 @@ eg. in swag project: `./libs`
 }
 ```
 
+### tempfile module
+
+### @dataclasses.dataclass
+
 ### boltons module
 
 - [boltons.dictuils.FronzenDict](https://boltons.readthedocs.io/en/latest/dictutils.html#boltons.dictutils.FrozenDict)
@@ -21,6 +25,8 @@ eg. in swag project: `./libs`
 - boltons.dictutils.subdict
 
 - boltons.dictutils.OrderedMultiDict
+
+- boltons.dictutils.OneToOne
 
 - [boltons.cacheutils.cachedproperty](https://boltons.readthedocs.io/en/latest/cacheutils.html#boltons.cacheutils.cachedproperty)
 
@@ -34,7 +40,11 @@ eg. in swag project: `./libs`
 
 - boltons.iterutils.first
 
+- boltons.iterutils.get_path
+
 - boltons.namedutils.namedtuple
+
+- boltons.urlutils.URL
 
 ### Flask
 
