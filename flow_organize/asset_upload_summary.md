@@ -226,6 +226,7 @@ Summary of asset processing:
 4. 上傳完成後，透過 PubSub API，load back Bucket 中的 METADATA
 5. 根據 METADATA，定義 Asset 是否視為 approved 與 completed
 
+
 Q:Statuses timestamp update in Asset:
 
 - `statuses.created`
