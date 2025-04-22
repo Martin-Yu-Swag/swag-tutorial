@@ -1,5 +1,9 @@
 # Feed
 
+## About `.rss` endpoint
+
+provided for Google SEO, not used by swag app
+
 ## `/feeds/flix_recommendation` 推薦影片
 
 SUMMARY: Get use-specific feed list from bucket object by identifier, then return paginate result
