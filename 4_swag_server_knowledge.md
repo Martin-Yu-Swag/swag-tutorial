@@ -268,12 +268,20 @@ in swag/features/assets/tasks/flows.py::`encode_message`
 # W7-W8
 
 - Feeds
-    - Different generations
+  - Different generations
 
 - Livestream
-    - Pay to watch/Authorizing
-    - Goals
-    - Leaderboard
+  - Pay to watch/Authorizing
+  - Goals
+  - Leaderboard
+
+NOTE:
+
+- 過去的直播邏輯為 "個人主播的直播間"，因此 routing 習慣為 `/streams/{streamer_id}/*`
+- 後來概念上改為 "各場次的直播 aka session"， routing 邏輯改成 `/session/{session_id}/*`
+
+- preview = Free Streaming
+- sd = Paid Streaming
 
 # Evaluation
 

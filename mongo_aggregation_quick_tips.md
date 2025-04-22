@@ -1,5 +1,9 @@
 # Frequently used expression in Aggregation
 
+## $unwind
+
+- treat non-array field as single element array
+
 ## $addField
 
 ## $facet
@@ -25,6 +29,8 @@ special use: group by null
 
 ## $project
 
+- ignore field if not exist
+
 ## $replaceWith
 
 Replaces the input document with the specified document.
@@ -33,8 +39,27 @@ Replaces the input document with the specified document.
 
 ## Expression
 
+- `$ifNull`
+- `$toObjectId`
 - `$mergeObject`
 - `$concatArrays`
 - date-related expression:
   - `$year`
   - `$month`
+
+- `$objectToArray`: turn object into array of object []
+
+eg: { item: "foo", qty: 25 }
+
+```json
+[
+   {
+      "k" : "item",
+      "v" : "foo"
+   },
+   {
+      "k" : "qty",
+      "v" : 25
+   }
+]
+```
