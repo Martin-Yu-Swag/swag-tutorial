@@ -84,7 +84,9 @@ with args:
 
 - Return transaction id
 
-...After `transfer`, Sending `feature.livestream` signal with `payment.succeeded` sender.
+---
+
+...In authorize_livestream, After `transfer`, Sending `feature.livestream` signal with `payment.succeeded` sender.
 
 Receivers:
 
@@ -92,6 +94,9 @@ Receivers:
   trigger `analytics.tasks.track`
 
 - `session_payment_received`: generate auth token then batch-notify
+  - event: `stream.authorized`
+  - channels: `presence-stream-viewer@{streamer_id}.{preset}.{viewer_id}` (preset = sd/preview)
+
 
 ### `payment.succeeded` -> `session_payment_received`
 

@@ -283,6 +283,36 @@ NOTE:
 - preview = Free Streaming
 - sd = Paid Streaming
 
+- About User kyc validation:
+  - KYC = know your customer
+  - 因應台灣法規做驗證
+  - 因此可以看到第一步就是 only 驗證 country = tw 的用戶，其他都通過
+
+- About User utm:
+  - UTM = Universal Transverse Mercator, 導流頁面資訊
+  - eg. 如果買廣告，帶的 url 上攜帶與導流網站相關的 query string, 並存到 `user.utm` field
+  - user.utm.initial / user.utm.current (UTMInformation)
+  - info fields: source, medium, campaign, term, content
+
+- Trivial things about `Gift`:
+  - `karaoke-` prefix gift: 遙控玩具 or 下達指令
+  - "非 livestream" 情境的禮物， eg. 私訊 (`Chat` Model) 時送 gift
+  - `LIVESTREAM_GIFT_TAG`      = general gift
+    `LIVESTREAM_SHOW_GIFT_TAG` = ticket, 因此會綁定 `funding_goal_id`
+
+  - `ShowGoalPair` 包含 funding_goal, show_goal
+    - funding_goal = 募票階段
+    - show_goal = 表演階段, 主播需達成時間要求才算完成 show session
+
+  - `GiftProduct` 是固定的 DB Record (eg. id = 'livestream-show-ticket_1200')
+  購票時 建立 `feature.gifts` object gift, 在 `gift.product.categories` 標註 Gift 類型: (以 buy ticket 為例)
+    - livestream-show-ticket
+    - livestream-show
+  
+  - 有時間關係的 Gift 就會有 Goal
+    eg. karaoke gift 指令有要求 duration, 因此贈送後有 `KaraokeGoal`
+
+
 # Evaluation
 
 - Must understand the high level flow of all the items
