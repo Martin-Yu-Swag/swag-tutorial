@@ -121,21 +121,23 @@ END OF SIGNAL
 
 ### Receiver `update_message_artifacts`
 
-SUMMARY: This is for re-used Asset, where Artifact is already prepared and recorded in `asset.artifacts`, so just copy it from storage
+SUMMARY: This is for re-used Asset or freshly-uploaded artifact, where Artifact is already prepared and recorded in `asset.artifacts`, so just copy it from storage
 
 - fetch `Asset` by asset_id
-- get message_id from `asset._claims`
+
 - proceed if Assets has labeled artifact:
   possible labels (dest):
-    - thumbnail (sd.jpg)
-    - thumbnail-sd-clear-watermarked-h264 (sd.jpg)
-    - thumbnail-blurred (sd-preview.jpg)
-    - thumbnail-sd-blurred-watermarked-h264 (sd-preview.jpg)
-    - trailer (sd.mp4 )
-    - trailer-10s-sd-clear-watermarked-h264 (sd.mp4 )
-    - trailer-blurred (sd-preview.mp4)
-    - trailer-10s-sd-blurred-watermarked-h264 (sd-preview.mp4)
-- Copy asset content to 'gs://asia.public.swag.live/messages/{message_id}/{asset_id}/{destination}'
+  - thumbnail (sd.jpg)
+  - thumbnail-sd-clear-watermarked-h264 (sd.jpg)
+  - thumbnail-blurred (sd-preview.jpg)
+  - thumbnail-sd-blurred-watermarked-h264 (sd-preview.jpg)
+  - trailer (sd.mp4 )
+  - trailer-10s-sd-clear-watermarked-h264 (sd.mp4 )
+  - trailer-blurred (sd-preview.mp4)
+  - trailer-10s-sd-blurred-watermarked-h264 (sd-preview.mp4)
+
+- lopping through `asset._claims` to get `message_id`:
+  - Copy asset content to 'gs://asia.public.swag.live/messages/{message_id}/{asset_id}/{destination}'
 
 ### Receiver `trigger_encode_message`
 
@@ -330,31 +332,36 @@ END OF SIGNAL `message.processing.started` -> `processing.started` -> `status.up
 
 Receivers:
 
-- handle_asset_quarantine_events_from_google_cloud_storage
+- `handle_asset_quarantine_events_from_google_cloud_storage`
   (for object PubSub from quarantine bucket, returned)
 
-- handle_artifact_events_from_google_cloud_storage
+- `handle_artifact_events_from_google_cloud_storage`
 
-- handle_events_from_google_cloud_transcoder
+- `handle_events_from_google_cloud_transcoder`
 
-### handle_artifact_events_from_google_cloud_storage
+### subscription `assets` -> handle_artifact_events_from_google_cloud_storage
 
 - parse required data
   - attributes.eventType
   - attributes.bucketId
   - attributes.objectId
   - data.contentType
+
 - proceed only when
   - bucketId match re_ARTIFACTS_BUCKET
   - objectId match Paths.artifact (asset_id,label)
+
 - fetch `asset` by asset_id
+
 - init asset.`Artifact`
   - label
   - content_type
   - content_md5 (data.md5Hash)
   - statuses (Asset.Artifact.Statuses(uploaded=now))
+
 - !!!Update asset:
   - set artifacts.[label] = init artifact
+
 - Send signal `artifact.uploaded` sender with
   - asset_id
   - owner_id
@@ -366,7 +373,7 @@ Receivers:
 - `approve_quarantined_asset_via_metadata` (only for METADATA artifact, returned)
 - `notify`
 - `trigger_generate_artifacts`: generate thumbnail and trailer from uploaded entrypoint artifact (`_thumbnail`, `_trailer`)
-- `update_message_artifacts`: after artifact upload, copy to message storage dir based on asset's claims
+- `update_message_artifacts`: after artifact upload, copy to message public storage dir based on asset's claims
 - `copy_to_artifact_to_public`
 - `trigger_sync_message_artifacts_to_v3`
 
@@ -374,8 +381,9 @@ Receivers:
 
 SUMMARY: Generate thumbnail and trailer from uploaded entrypoint artifact
 
-- proceed only when label in (_thumbnail, _trailer)
+- proceed only when label in (`_thumbnail`, `_trailer`)
   NOTE: `_thumbnail`, `_trailer` is derived from API endpoint `swag/features/assets/endpoints.py::upload_artifact`
+
 - Trigger following task according to the label:
   - generate_thumbnail_artifact
   - generate_trailer_artifact
@@ -390,7 +398,7 @@ SUMMARY: Generate thumbnail and trailer from uploaded entrypoint artifact
 
 #### `artifact.uploaded` -> update_message_artifacts
 
-SUMMARY: after artifact upload, copy to message storage based on asset's claims
+SUMMARY: after artifact upload, copy to message public storage based on asset's claims
 
 - proceed with following label (label (destination)):
   - thumbnail (sd.jpg)
@@ -401,16 +409,81 @@ SUMMARY: after artifact upload, copy to message storage based on asset's claims
   - trailer-10s-sd-clear-watermarked-h264 (sd.mp4 )
   - trailer-blurred (sd-preview.mp4)
   - trailer-10s-sd-blurred-watermarked-h264 (sd-preview.mp4)
+
 - fetch Asset by asset_id
+
 - loop message_id through asset._claims (Claims.message):
   - ...IF label in aforementioned & posses `asset.artifact[label]`
     - re-write to `gs://asia.public.swag.live/messages/{message_id}/{asset_id}/{destination}`
 
-### handle_events_from_google_cloud_transcoder
+#### `artifact.uploaded` -> trigger_sync_message_artifacts_to_v3
+
+SUMMARY: rewrite thumbnail & trailer labeled artifact to bucket `asia.public.swag.live`:
+
+- `messages_v3/{message_id}/{asset_id}/poster.js`
+- `messages_v3/{message_id}/{asset_id}/trailer.mp4`
+
+- Trigger Task `sync_message_artifacts_to_v3` with
+  - asset_id
+  - label
+
+In `sync_message_artifacts_to_v3`
+
+- proceed with one of labels:
+  - `thumbnail` -> target = `poster.jpg`
+  - `trailer` -> target = `trailer.mp4`
+
+- Fetch asset by asset_id
+
+- Init asset.artifacts[label]
+
+- looping through `asset._claims` to find matched `Claims.message`:
+  - parse message_id from claim
+  - rewrite to `asia.public.swag.live::messages_v3/{message_id}/{asset_id}/{target}`
+
+### subscription `encode-message-results` -> handle_events_from_google_cloud_transcoder
+
+- args:
+  - publishTime
+  - attributes
+  - data
+
+- proceed with following params
+  - `attribute.eventType` (OBJECT_FINALIZE)
+  - `attributes.bucketId`
+  - `attributes.objectId`
+  - `data.contentType`
+
+- proceed only with
+  - bucket_id match `re_ARTIFACTS_BUCKET`
+  - object_id match `Paths.artifact`
+
+- Init asset.Artifact:
+  - label        = matched['label] (from object_id)
+  - content_type = content_type
+  - content_md5  = `data.md5Hash`
+  - statuses     = Asset.Artifact.Statuses(uploaded=now)
+
+- !!!Update Asset:
+  - set `asset.artifacts.[label]` = artifact
+
+- Send Signal sender `artifact.uploaded`
+  - asset_id
+  - owner_id
+  - label
+  - content_type
+  - Working Receivers:
+    - `update_message_artifacts`
+      - rewrite to `asia.public.swag.live` according to `asset._claims`
+    - `copy_to_artifact_to_public`
+      (for `user_picture`, `user_background` claims)
+    - `trigger_sync_message_artifacts_to_v3`
+      - for `thumbnail` and `trailer` artifact
+      - rewrite to `asia.public.swag.live` according to `asset._claims`
 
 ---
 
-# Overview
+## Overview
 
 Message status change
 
@@ -429,8 +502,13 @@ Message status change
 
 (Asset status change)
 3. When receive bucket OBJECT_FINALIZE notify callback
-  -> In `handle_artifact_events_from_google_cloud_storage`,
-     TIMESTAMPED `assets.artifacts.[label].statuses.uploaded`
+  -> In `handle_artifact_events_from_google_cloud_storage`
+  -> TIMESTAMPED `assets.artifacts.[label].statuses.uploaded`
+
+4. When receive bucket OBJECT_FINALIZE notify callback
+  -> In `handle_events_from_google_cloud_transcoder`
+  -> TIMESTAMPED `assets.artifacts.[label].statuses.uploaded`
+
 ---
 
 Concept of idempotent:
@@ -454,3 +532,16 @@ Quick note:
 目前的 voice-related service:
 - 個人私訊 
 - 直播結束後，直播主群發 voice message (`create_voice_message`)
+
+---
+
+Question:
+
+How does `poster.jpg` thumbnail, `trailer.mp4` create?
+
+A: After artifact uploaded, pubsub callback trigger `handle_artifact_events_from_google_cloud_storage` and further ``artifact_uploaded`.
+
+In `trigger_sync_message_artifacts_to_v3`, for artifact "thumbnail" and "trailer", rewrite to `asia.public.swag.live::messages_v3/{message_id}/{asset_id}/{target}`, where message_id is parsed from `asset._claims`.
+
+---
+
