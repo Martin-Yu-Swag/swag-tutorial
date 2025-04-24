@@ -312,6 +312,30 @@ NOTE:
   - 有時間關係的 Gift 就會有 Goal
     eg. karaoke gift 指令有要求 duration, 因此贈送後有 `KaraokeGoal`
 
+- How user get byteplus_token?
+  - 方法一：透過 batch-autenticate subscribe
+    `presence-enc-stream-viewer@{streamer_id}.sd.{viewer_id}`
+    channel, 如果有購票的話就會帶上 token
+  - 方法二：透過 endpoint `/streams/<objectid:session_id>/token`, 主動取得 token
+    (for 減少 batch-authentication 的壓力)
+
+- 在 get session token endpoint 裡，會把整個 response 用 LIVESTREAM_TOKEN_CACHE_KEY format cache 起來。
+
+- 直播暢遊卷 `livestream_pass*`：
+  - 兩種類型
+    - `livestream_pass` (global)
+    - `livestream_pass_{streamer_id}`
+  - `users.tagsv2.livestream_pass`: {nbf, exp}
+  - 取得暢遊卷後，選擇啟用，才將 `livestream_pass` 掛載到 tagsv2 下，並填上 nbf, exp
+
+- Who is authorized to earn sd token?
+  - A: ticket buyer, recorded in `session.show_goal_pairs[-1].funding_goal.breakdown.{user_id}`
+  - B: payer, recorded in `session.viewers.{user_id}`
+  - C: livestream_pass owner, recorded in `user.tagsv2.livestream_pass`
+
+QUESTION: Where to store livestream_pass?
+
+HINT: `order.paid` -> grant_passes
 
 # Evaluation
 

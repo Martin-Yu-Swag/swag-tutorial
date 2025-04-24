@@ -2,6 +2,10 @@
 
 Endpoint: [POST] `/users/<objectid:user_id>/gift/<product_id>`
 
+Args:
+
+- product_id (livestream-show-ticket_1200)
+
 Queries:
   - count (min = 1)
 
@@ -29,15 +33,15 @@ func flow:
 - Fetch Receiver `User` by `receiver_id`
 - Check if receiver is has creator tags
 - set vars
-  - `product_categories`       = product.category (or empty set)
+  - `product_categories`       = product.category (eg. ['livestream-show-ticket'])
   - `extra_product_categories` = set()
-  - product_price            = product.skus[0].price.amount (NOTE: 因為是鑽石交易，skus 必定只有一個 item)
-  - tags                     = set()
-  - metadata                 = {"count": count}
-  - escrow_id                = None
+  - product_price              = product.skus[0].price.amount (NOTE: 因為是鑽石交易，skus 必定只有一個 item)
+  - tags                       = set()
+  - metadata                   = {"count": count}
+  - escrow_id                  = None
 
 - IF product posses any `livestream-*` tag:
-  SUMMARY: Add livestream-related tag and metadata
+  **SUMMARY**: Add livestream-related tag and metadata
 
   - Fetch session (by receiver_id + active=True)
   - ...IF sender is session's exclusive user -> metadata["exclusive"] = True
@@ -73,6 +77,7 @@ func flow:
 
 - reduce `product_categories` to related-gift tag only:
   - filter list: if any of match:
+    (result: 'livestream-show-ticket')
     - not 'livestream-karaoke-*'
     - match 'livestream-karaoke-{receiver.id}'
     - match 'livestream-karaoke-default'
@@ -133,9 +138,21 @@ Args:
 - receiver_id        = gift.receiver.id,
 - product_id         = gift.product.id,
 - product_categories = product_categories,
+  RESULT
+  - `livestream-show-ticket`
+  - `livestream`
+  - `livestream-show`
 - cost_amount        = gift.cost.amount,
-- tags               = tags,
 - metadata           = gift.metadata,
+  RESULT
+  - count
+  - funding_goal_id
+- tags               = tags,
+  RESULT
+  - `swag::livestream.session:{session["id"]}.gift`
+  - `swag::livestream.session:{session["id"]}.show_funding:{funding_goal_id}`
+  - `swag::gift:{gift.id}`
+  - `swag::gift.product:{gift.product.id}`
 
 Receivers:
 
@@ -286,16 +303,5 @@ Receivers:
 
   - `invalidate_cached_pusher_channel_data`
     Invalidate cached private-user@streamer_id, private-streamer@streamer_id channel data
-
----
-
-Q: If i buy a ticket, when did i get the byteplus_token?
-
-A:
-
-User asking batch-auth for channel `presence`, feature `stream-viewer`
-
--> receiver `authorize_stream_viewer_session`
-->
 
 ---
