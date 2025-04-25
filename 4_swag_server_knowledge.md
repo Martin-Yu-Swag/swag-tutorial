@@ -270,6 +270,10 @@ in swag/features/assets/tasks/flows.py::`encode_message`
 - Feeds
   - Different generations
 
+NOTE:
+
+- Feed 的 排序依據: `Feeditem.metadata.s_score`
+
 - Livestream
   - Pay to watch/Authorizing
   - Goals
@@ -332,6 +336,18 @@ NOTE:
   - A: ticket buyer, recorded in `session.show_goal_pairs[-1].funding_goal.breakdown.{user_id}`
   - B: payer, recorded in `session.viewers.{user_id}`
   - C: livestream_pass owner, recorded in `user.tagsv2.livestream_pass`
+
+- `Stream.viewers` 是作為 pay method 權限控管的紀錄;
+  紀錄直播間人數的 model 則是 `StreamViewer` model
+
+- Livesteam.`Sources` model:
+  直播主使用的直播來源 (eg. 手機 or OBS), 目前沒有特別用途
+
+- Question: when will escrow_refund happen:
+  - 1. FundingGoal reached, but no related ShowGoal found
+    (`deactivate_goals_in_session`)
+  - 2. Show goal trigger_show_escrow_refund
+    (`trigger_show_escrow_refund`)
 
 QUESTION: Where to store livestream_pass?
 

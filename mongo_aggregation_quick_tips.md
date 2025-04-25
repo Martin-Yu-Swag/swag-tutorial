@@ -4,6 +4,8 @@
 
 - treat non-array field as single element array
 
+> When using this syntax, `$unwind` does not output a document if the field value is null, missing, or an empty array
+
 ## $addField
 
 ## $facet
@@ -63,6 +65,8 @@ eg: { item: "foo", qty: 25 }
    }
 ]
 ```
+
+- `$arrayToObject`
 
 --- 
 
