@@ -144,7 +144,7 @@ Receivers:
   - `append_reply_price`
     - event: user.reply-price-changed
   - `attach_user_level`
-    - event: level.updated
+    event: level.updated
   - `attach_user_events`
     - event: message.sent
 
@@ -168,18 +168,113 @@ Receivers:
 
 Receivers:
 
+`attatch_retained_events`
+events:
+- Fetch events data from `Channel.events`
+
 - user
+  - `activate_ab`
+    events:
+    - ab.updated
+    - mixpanel.updated
+  - `attach_configurations`
+    events:
+  - `register_push_notification_tokens`
+    events:
+    - fcm.updated
+    - pushy.updated
+  - `attach_permission_update_time`
+    events:
+    - user.permissions.updated
+  - `authorize_zendesk_user`
+    events:
+    - zendesk.updated
+  - `authorize_user_channel` (no events return)
+  - `attach_request_metadata`
+    events: metadata.updated
+  - `attach_mixpanel`
+    events: mixpanel.updated
+  - `attach_user_balance`
+    events: balance.updated
+  - `attach_user_level`
+    events: level.updated
+  - `attach_user_spendings`
+    events: spendings.updated
+
+
+
 - client
+  - `activate_ab_client`
+    events:
+    - ab.updated
+    - mixpanel.updated
+  - `attach_configurations` (no "events" returned)
+  - `attach_kyc`
+    events:
+    - kyc.{status} for kyc in KYC.objects.filter(user=object_id)
+  - `register_push_notification_tokens`
+  - `authorize_lovense_client` (no events returned)
+  - `authorize_client_channel` (no events returned)
+  - `attach_request_metadata`
+  - `attach_mixpanel`
+    events: mixpanel.updated
+
 - asset
+  - `allow_asset_owner`
+    events:
+    - asset.{status} for status in asset.statuses.latest
+
 - chat
+  - `authorize_chat_channel` (basically no returned event)
+
 - goal
+  - `authorize_presence_goal` (no events returned)
+  - `authorize_presence_goal_participant`
+    events:
+    - `goal.updated` -> basically for user to see it's own breakdown count
+
 - session
+  - `stream_info`
+    event:
+    - stream.online
+    - stream.revenue.updated
+    - goal.started
+    - goal.progress.updated
+    - goal.added
+    - session.events item
+    - stream.viewers.updated
+    - source.online
+    - session.rating.updated
+    - ...event from notifications.tasks.get_retained_ephemeral_events(session_id)
+
 - stream
+  - `stream_info`
+  - `attach_lovense_online_device`
+    events:
+    - device.online
+
 - stream-viewer
+  - `authorize_stream_viewer_session`
+    events:
+    - stream.authorized
+    - level.updated
+
 - stream-exclusive
+  - `authorize_exclusive_stream_channel` (no events return)
+
 - session-exclusive
+  - `authorize_exclusive_stream_channel` (no events return)
+
 - order
+  - `authorize`
+    events:
+    - `order.{status}` status = order.status_transitions.latest()
+
 - message
+ - `authorize_message`
+   events:
+   - status (from message.status_transitions.latest())
+   - asset.asset_status (from asset.statuses.latest) for asset in message.assets
 
 ## pusher.tasks.authenticate
 
