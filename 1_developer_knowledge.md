@@ -372,9 +372,109 @@
 
 # W7-W8
 
-### How to create good PRs ?
-    - https://github.blog/2015-01-21-how-to-write-the-perfect-pull-request/
-    - https://benjamincongdon.me/blog/2022/07/17/In-Praise-of-Stacked-PRs/
+## How to create good PRs ?
 
-### How to conduct good PR reviews ?
-    - https://mtlynch.io/human-code-reviews-1/
+### [How to write the perfect pull request](https://github.blog/2015-01-21-how-to-write-the-perfect-pull-request/)
+
+NOTE: clarity, explicitness.
+
+### [In Praise of Stacked PRs](https://benjamincongdon.me/blog/2022/07/17/In-Praise-of-Stacked-PRs/)
+
+- Stacked PR: breaking up a large change int smaller, individually reviewable PRs.
+
+- Benefits:
+  - Easier & quicker to review / Easier to rollback
+  - Stacking PRs keeps the author unblocked
+  - Allow to easily managed dependent changes
+
+## How to conduct good PR reviews ?
+
+### [How to Do Code Reviews Like a Human](https://mtlynch.io/human-code-reviews-1/)
+
+- The author must create a **changelist**: a set of changes to source code
+
+Techniques:
+
+#### Let Computers do the boring parts
+
+- Use automated formatting tool
+- tools:
+  - pre-commit hooks in Git
+  - webhooks in Github
+
+#### Settle style arguments with a style guide
+
+- Don't waste time arguing styling issue.
+  Just defer to the style guide and move on
+
+- Adopt an existing style guide / Create your own style guide incrementally
+
+#### Start reviewing immediately
+
+Blocked PRs are prone to growing into larger PR.
+
+#### Start high level and work your way down
+
+> Focus on issues like redesigning a class interface or splitting up complex functions.
+> Wait until those issues are resolved before tackling lower-level issues, such as variable naming or clarity of code comments
+
+-> 處理 High-level issues 優先，再慢慢處理 trivial issues (naming, styling).
+
+#### Be generous with code examples
+
+#### Never say “you”
+
+> Word your feedback in a way that minimizes the risk of raising your teammate’s defenses
+
+> Critique the code, not the coder.
+
+- Options 1: Replace 'you' with 'we'
+  -> “We” reinforces the team’s collective responsibility for the code
+
+- Option 2: Remove the subject from the sentence OR use passive voice
+  (Or may be starting the sentence with 'What about')
+
+#### Frame feedback as requests, not commands
+
+> If you frame your feedback as a command, any push-back from the author comes across as disobedience.
+
+#### Tie notes to principles, not opinions
+
+- eg. SRP (single responsibility principle)
+
+> Grounding your notes in principles frames the discussion in a constructive way
+
+---
+
+(PART 2)
+
+> Takeaway: a good code reviewer not only finds bugs,
+  but provides conscientious feedback to help their teammates improve.
+
+#### Aim to bring the code up a letter grade or two
+
+- Don't push the PRs from grade D to grade-extreme-perfect, this frustrate the author.
+
+#### Limit feedback on repeated patterns
+
+#### Respect the scope of the review
+
+> The rule of thumb is: if the changelist doesn’t touch the line, it’s out of scope.
+
+#### Look for opportunities to split up large reviews
+
+#### Offer sincere praise
+
+#### Grant approval when remaining fixes are trivial
+
+- Grant approval when any of the following are true
+  - You have no more notes.
+  - Your remaining notes are for trivial issues (eg. typo)
+  - Your remaining notes are optional suggestions
+
+#### Handle stalemates proactively
+
+- Talk it out: Meet in person or over video chat
+- Consider a design review
+- Concede or Escalate
+- Recovering from a stalemate

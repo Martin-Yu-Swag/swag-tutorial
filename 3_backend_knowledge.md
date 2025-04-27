@@ -582,11 +582,17 @@ Disadvantages
 
 # W7-W8
 
-- [Task Queues](https://dev.to/sarbikbetal/task-queues-and-why-do-we-need-them-26mj)
-    - Broker
-    - Producer
-    - Consumer
-    - List out a few usages for task queue in our application and trace the overall flow to the best you can.
+## [Task Queues](https://dev.to/sarbikbetal/task-queues-and-why-do-we-need-them-26mj)
+
+- Broker
+
+- Producer / Publisher
+  who adds the task in a queue.
+
+- Consumer
+  watches the job queue for any pending job and sends it for processing
+
+- List out a few usages for task queue in our application and trace the overall flow to the best you can.
 
 # Evaluations
 

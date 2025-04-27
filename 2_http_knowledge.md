@@ -662,7 +662,94 @@ STS = Station-to-Station protocol
 
 # W7-W8
 
-- Websockets
+## Websockets
+
+### [MDN: The WebSocket API (WebSockets)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
+
+> The WebSocket API makes it possible to **open a two-way interactive communication session** between the user's browser and a server.
+
+- WebSocket interface:
+  - stable and has good browser and server support
+  - doesn't support back-pressure when msg >> application capability to process
+    -> occupy all sever resources for buffering msg
+
+- WebSocketStream interface
+  - a Promise-based alternative to WebSocket
+  - uses the Streams API to handle receiving and sending messages
+  - regulating the speed of reading or writing to avoid bottlenecks in the app
+
+(**WebTransport API** is expected to replace the WebSocket API)
+
+#### Interface
+
+- **WebSocket**
+  The primary interface for connecting to a WebSocket server and then sending and receiving data on the connection.
+
+- **CloseEvent**
+  The event sent by the WebSocket object when the connection closes.
+
+- **MessageEvent**
+  The event sent by the WebSocket object when a message is received from the server.
+
+#### Related HTTP headers
+
+Request Headers:
+
+- **Sec-WebSocket-Key**
+  - contains a nonce from the client
+    (nonce: 在加密通訊只能使用一次的數字)
+  - Used in the WS opening handshake to verify that the client explicitly intends to open a WS.
+  - Added automatically by the browser.
+
+- **Sec-WebSocket-Version**
+  - the WS protocol understood by the client.
+  - IN RESP: IF requested ver. is not supported by the server,
+    lists the versions that the server supports
+
+- **Sec-WebSocket-Protocol**
+  - indicates the sub-protocols supported by the client in preferred order
+  - IN RESP: indicates the sub-protocol selected by the server from the client's preferences
+
+- **Sec-WebSocket-Extensions**
+  - indicates the WS extensions supported by the client in preferred order
+  - IN RESP: the extension selected by the server from the client's preferences
+
+```bash
+curl 'wss://soketi.swag.live/app/10000appKey?protocol=7&client=js&version=8.3.0&flash=false' \
+  -H 'Upgrade: websocket' \
+  -H 'Origin: https://swag.live' \
+  -H 'Cache-Control: no-cache' \
+  -H 'Accept-Language: zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7' \
+  -H 'Pragma: no-cache' \
+  -H 'Connection: Upgrade' \
+  -H 'Sec-WebSocket-Key: bBesL1lTV9UwGOYoIeG03A==' \
+  -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36' \
+  -H 'Sec-WebSocket-Version: 13' \
+  -H 'Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits'
+```
+
+Response Headers:
+
+- **Sec-WebSocket-Accept**
+  - indicate that the server is willing to upgrade to a WS connection
+  - value is calculated from the value of **Sec-WebSocket-Key** in the corresponding req
+
+- **uWebSockets** (from gemini)
+  - indicates that the server is using the [uWebSockets](https://github.com/uNetworking/uWebSockets) library
+
+```http
+HTTP/1.1 101 Switching Protocols
+
+Sec-WebSocket-Accept: WAmTUzb8Ij4zQLqSh4dy8ZivGqo=
+uWebSockets         : 20
+Date                : Sun, 27 Apr 2025 12: 08: 49 GMT
+Via                 : 1.1 google
+Upgrade             : websocket
+Connection          : Upgrade
+Alt-Svc             : h3=":443"; ma=2592000, h3-29=":443"; ma=2592000
+```
+
+---
 
 # Evaluations
 
