@@ -443,43 +443,30 @@ In `sync_message_artifacts_to_v3`
 
 ### subscription `encode-message-results` -> handle_events_from_google_cloud_transcoder
 
-- args:
-  - publishTime
+- with args:
   - attributes
   - data
 
-- proceed with following params
-  - `attribute.eventType` (OBJECT_FINALIZE)
-  - `attributes.bucketId`
-  - `attributes.objectId`
-  - `data.contentType`
+- parse required fields:
+  - event = attributes.event (`completed` / `fail`)
+  - message_id = attributes.message_id
+  - asset_id = attributes.asset_id
 
-- proceed only with
-  - bucket_id match `re_ARTIFACTS_BUCKET`
-  - object_id match `Paths.artifact`
+- Sending `features.asset` signal with sender `message.processing.completed`
+  Receivers:
+  - update_message_asset_status
 
-- Init asset.Artifact:
-  - label        = matched['label] (from object_id)
-  - content_type = content_type
-  - content_md5  = `data.md5Hash`
-  - statuses     = Asset.Artifact.Statuses(uploaded=now)
+#### `message.processing.completed` -> update_message_asset_status
 
-- !!!Update Asset:
-  - set `asset.artifacts.[label]` = artifact
+- !!!Update `Message.asset.{asset_id}.status_transitions.processing_completed` = now
 
-- Send Signal sender `artifact.uploaded`
-  - asset_id
-  - owner_id
-  - label
-  - content_type
-  - Working Receivers:
-    - `update_message_artifacts`
-      - rewrite to `asia.public.swag.live` according to `asset._claims`
-    - `copy_to_artifact_to_public`
-      (for `user_picture`, `user_background` claims)
-    - `trigger_sync_message_artifacts_to_v3`
-      - for `thumbnail` and `trailer` artifact
-      - rewrite to `asia.public.swag.live` according to `asset._claims`
+- IF ALL message.asset is processing completed
+  -> send `features.message` signal with sender `processing.completed`
+  Receivers:
+  - track_message_status: Trigger Task `analytics.tasks.track` 
+  - update_message_status
+    - !!!Update: TIMESTAMPED `Message.status_transitions.processing_completed`
+    - Trigger `status.updated`
 
 ---
 
@@ -506,8 +493,13 @@ Message status change
   -> TIMESTAMPED `assets.artifacts.[label].statuses.uploaded`
 
 4. When receive bucket OBJECT_FINALIZE notify callback
-  -> In `handle_events_from_google_cloud_transcoder`
-  -> TIMESTAMPED `assets.artifacts.[label].statuses.uploaded`
+  -> In `handle_events_from_google_cloud_transcoder`, trigger `message.processing.completed`
+  -> In `update_message_asset_status`
+  -> TIMESTAMPED `message.asset.[asset_id].status_transitions.processing_completed`
+
+5. After `update_message_asset_status`, if "All" message's artifacts are status processing_completed
+  -> Trigger message signal `processing_completed`
+  -> TIMESTAMPED `status_transitions.processing_completed`
 
 ---
 
