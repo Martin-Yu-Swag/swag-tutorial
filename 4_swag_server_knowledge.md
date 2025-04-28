@@ -337,7 +337,7 @@ NOTE:
   - B: payer, recorded in `session.viewers.{user_id}`
   - C: livestream_pass owner, recorded in `user.tagsv2.livestream_pass`
 
-- `Stream.viewers` 是作為 pay method 權限控管的紀錄;
+- `session.viewers` 是作為 pay method 權限控管的紀錄;
   紀錄直播間人數的 model 則是 `StreamViewer` model
 
 - Livesteam.`Sources` model:
