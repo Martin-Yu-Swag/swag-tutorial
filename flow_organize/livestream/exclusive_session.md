@@ -453,10 +453,10 @@ func flow:
   - bind_exclusive_goals_to_session
     Update `session.exclusive_goal_pairs.{user_id}.exclusive_goal` = goal_id
 
-  - snapshot_rtc_sources
+  - `snapshot_rtc_sources`
     Disable snapshot on exclusive start
 
-  - schedule_lifecycle_tasks
+  - `schedule_lifecycle_tasks`
 
   - track_goals
     Trigger Task analytics.tasks.track
