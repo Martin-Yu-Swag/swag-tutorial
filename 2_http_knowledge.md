@@ -664,6 +664,90 @@ STS = Station-to-Station protocol
 
 ## Websockets
 
+### Socket Explain
+
+[99% of Developers Don't Get Sockets](https://youtu.be/D26sUZ6DHNQ?si=8oi0CS9bvP2aptsN)
+
+- Socket 直譯 = 插座，定義連接 process connection 的 interface (API)
+
+> Sockets are an abstraction provided by OSs to enable communication between different processes,
+  either on the same machine or over a network.
+
+- Socket Address = software construct wraps a combination of
+  - protocol (TCP / UDP)
+  - IP address
+  - Port number
+
+- Sockets operate primarily at the **Transport Layer** (L4),
+  App (L7) calls down to the Socket API, asking to send / receive data.
+  Sockets would then wraps the data into TCP / UDP segments, add headers, and sends it to the Network Layer (L3).
+
+- Server Side Socket Life Cycle:
+  - `socket()`
+    create a listening socket
+  - `bind()`
+    associate IP and port # with a socket
+  - `listen()`
+    wait for incoming connections
+  - `accept()` 
+    -> then create a new socket dedicated to the specific client communication,
+       original socket continues to listening new req
+  - the created socket becomes the channel through the communication:
+    - `read()`
+    - `write()`
+  - This allows Server to handle multiple req concurrently
+    (multithreading / multiprocessing)
+
+- Use non-blocking IO or event-driven architecture to avoid idle waiting thread
+
+- Client Side Socket:
+  - `socket()`
+  - `connect()`
+    - `read()`
+    - `write()`
+  - `close()`
+    close socket thread to free up resources
+  
+- High level view of a Socket: 5-tuple
+  - Type of socket (TCP/UDP)
+  - Local Port
+  - Local IP address
+  - Peer's Port (optional for UDP)
+  - Peer's IP address (optional for UDP)
+
+- **UDS**: Unix Domain Sockets
+  - used for inter-process communication (IPC) on the same host
+  - use a file path on the FS
+    (eg. `/tmp/app.sock` as address)
+  - faster because bypass network stack entirely, no IP routing or protocol overhead
+  - Eg. PostgreSQL, Redis for local client-server communication
+
+- NOTE: socket are inherently insecure, no encryption involved;
+  security usually achieved via TLS.
+
+### [How Web Sockets work | Deep Dive](https://youtu.be/G0_e02DdH7I?si=W804swdljCq_DqXo)
+
+- Init the channel through **WS handshake**
+  - client send `ws://*` GET request -> intention to upgrade to WS
+    Headers:
+    - `Connection: Upgrade`
+    - `Upgrade: websocket`
+    - `Sec-WebSocket-Key: <base64-encoded>` used for server to verify handshake data
+    - `Sec-WebSocket-Protocol: chat, superchat`
+    - `Sec-WebSocket-Versions: <int>`
+  - Server receives:
+    - Check the req headers
+    HTTP/1.1 **101** Switching Protocols
+    Response Headers:
+    - `Connection: Upgrade`
+    - `Upgrade: websocket`
+    - `Sec-WebSocket-Accept: <base64-encoded>`
+    - `Sec-WebSocket-Protocol: chat`
+
+- URI format:
+  - "ws://<host>:<port><path><queries>"   (port 80)
+  - "wss://<host>:<port><path><queries>"  (port 443)
+
 ### [MDN: The WebSocket API (WebSockets)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
 
 > The WebSocket API makes it possible to **open a two-way interactive communication session** between the user's browser and a server.
