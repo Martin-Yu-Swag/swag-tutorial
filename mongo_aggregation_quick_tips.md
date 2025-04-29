@@ -75,3 +75,24 @@ MapField
 > A field that maps a name to a specified field type. Similar to a DictField, except the ‘value’ of each item must match the specified field type.
 
 -> value must be specified type!
+
+---
+
+## `__S__` in mongoengine
+
+- 源自於 Mongo positional operator `$`
+  ([Reference](https://www.mongodb.com/docs/manual/reference/operator/update/positional/))
+
+```js
+db.students.updateOne(
+   { _id: 1, grades: 80 },
+   { $set: { "grades.$" : 82 } }
+)
+```
+
+- 在 mongoengine 中，因 python key 不能有 `$`，故變成
+  (See [Querying List](https://docs.mongoengine.org/guide/querying.html#querying-lists))
+
+```py
+Post.objects(comments__by="joe").update(inc__comments__S__votes=1)
+```

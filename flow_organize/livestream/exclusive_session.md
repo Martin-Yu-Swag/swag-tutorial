@@ -156,7 +156,7 @@ wallet callback: `/notify/wallet/transaction`
     - notify_goal_progress_updated
     - update_and_notify_session_karaoke_goal **returned**
     - invalidate_cached_pusher_channel_data
-    - **trigger_goal_complete**
+    - trigger_goal_complete (no level, **returned**)
     - notify_viewer_change_stream_for_show
     - trigger_exclusive_goal_escrow_refund
 
