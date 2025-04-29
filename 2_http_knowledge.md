@@ -622,7 +622,38 @@ TLS = Transport Layer Security
 TLS vs STS
 
 TLS = Transport Layer Security
-STS = Station-to-Station protocol
+STS = Strict Transport Security
+
+### [How TLS Works?](https://youtu.be/THxIyHz191A?si=X4Ab2rjkpBJDn8It)
+
+- Upgraded version of SSL (Secure Sockets Layer)
+
+- 3 function provided by TLS
+  - Authentication
+  - Data encryption
+  - Data integrity (avoid being tampered)
+
+#### TLS Session
+
+- **Handshake phase**
+  - Server provides TLS Certificate & public Key
+  - Client check Cert integrity through **CA** (Certificate Authority)
+  - Client gen random string then enc through public key
+  - Server decrypt the enc-string with private key
+  - Both Client & Server use rand-string + other info to gen identical **session key**
+
+- **Encryption phase**
+  - Use session key to encrypt / decrypt the data
+  - NOTE: Symmetric encryption is faster than Asymmetric!!!
+
+#### Certificate Authority
+
+#### MAC: Message Authentication Code
+
+- MAC key is generate during handshake
+- encrypted msg -> hash func + MAC key -> MAC
+- MAC is delivered along with enc data
+- receiver then compare the MAC code and self-gen MAC from received enc-msg
 
 ### TLS
 
@@ -636,27 +667,38 @@ STS = Station-to-Station protocol
 - After handshake, use session key to encrypt and decrypt messages until the connection close.
   (symmetric-key algorithm)
 
-### STS key agreement scheme
+### [MDN STS: Strict-Transport-Security](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Strict-Transport-Security)
 
-- establishes a shared secret key between two parties (usually called "stations")
-  over an insecure communication channel.
-- agree on a public key -- a large number
-  -> use this public key to generate a shared secret key
-  -> use secret key to encrypt/decrypt messages
-- Uses:
-  - HTTPS connection
-  - network communication protocol eg. IPSec
-  - Protecting sensitive information during transmission
-  - Ensuring the confidentiality and integrity of sent messages
+> Response Header to inform browser that the site should be accessed using HTTPS,
+  and that any future attempts to access it using HTTP should auto be upgraded to HTTPs.
 
-- basic idea: Diffie-Hellman key exchange protocol
-  - agree on a large prime number p
-  - agree on a primitive root modulo p,g
-  - 2 stations generate their own private keys a/b
-  - 2 stations compute their public keys A/B respectively
-  - 2 stations exchange public keys
-  - Once receive public key, can them compute the shared secret key based on p modulo
-  - Use **private key** to encrypt, and sign the message through hashing
+```HTTP
+Strict-Transport-Security: max-age=<expire-time>
+Strict-Transport-Security: max-age=<expire-time>; includeSubDomains
+Strict-Transport-Security: max-age=<expire-time>; includeSubDomains; preload
+```
+
+**Directives**
+
+- `max-age=<exp-time>`
+  The time, in seconds, that the browser should remember that a site is only to be accessed using HTTPS
+  - IN SWAG: max-age = 63072000 sec = 17520 hr = 730 days
+
+- `includeSubDomains`
+  optional, specify this rule applies to all of the site's subdomains as well.
+
+- `preload`
+  - optional
+  - When using preload, the max-age directive must be at least 31536000 (1 year), and the includeSubDomains directive must be present.
+  - Used for HSTS policy, See [ref](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Strict-Transport-Security#preloading_strict_transport_security)
+
+**Description**
+
+- Man-in-the-middle may occur in the process of HTTP -> HTTPs redirection
+- The STS header informs the browser that **it should never load a site using HTTP**,
+  and should **automatically convert all attempts to access** the site using HTTP to HTTPS requests instead.
+- Every time receive STS will refresh the expire time stored in browser
+- To disable STS: just set exp time to 0
 
 ---
 
