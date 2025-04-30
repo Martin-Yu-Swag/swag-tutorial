@@ -1,4 +1,4 @@
-# Send Gift to User
+# Buy Show ticket
 
 Endpoint: [POST] `/users/<objectid:user_id>/gift/<product_id>`
 
@@ -16,7 +16,7 @@ before func:
   - See 4_swag_server_knowledge for detailed explanation
   - examine any(a series of check)
 
-func flow:
+func `send_gift_to_user` flow:
 
 - execute function `tasks.send_gift` with args:
   - product_id
@@ -27,13 +27,20 @@ func flow:
 
 - Get `gift_id` from task, and return this id in response
 
-## tasks.send_gift
+## Task `send_gift`
+
+**SUMMARY**
+- create `Gift` document
+- trigger Task
+  - `transfer`
+  - `save_gift_transaction`
+  - link: Send signal `gift.sent`
 
 - Fetch `GiftProduct` by `product_id`
 - Fetch Receiver `User` by `receiver_id`
 - Check if receiver is has creator tags
 - set vars
-  - `product_categories`       = product.category (eg. ['livestream-show-ticket'])
+  - `product_categories`       = product.categories (eg. ['livestream-show-ticket'])
   - `extra_product_categories` = set()
   - product_price              = product.skus[0].price.amount (NOTE: 因為是鑽石交易，skus 必定只有一個 item)
   - tags                       = set()
@@ -45,8 +52,10 @@ func flow:
 
   - Fetch session (by receiver_id + active=True)
   - ...IF sender is session's exclusive user -> metadata["exclusive"] = True
-  - `tags`.add(f'swag::livestream.session:{session["id"]}.gift')
-  - `extra_product_categories`.add('livestream')
+  - `tags`.add
+    - 'swag::livestream.session:{session["id"]}.gift
+  - `extra_product_categories`.add
+    - 'livestream'
   - loop through tag in `product_categories`
 
     - ...IF tag match LIVESTREAM_KARAOKE_GIFT_CATEGORY
@@ -68,12 +77,20 @@ func flow:
       - append related field data:
         - `metadata`['funding_goal_id'] = funding_goal_id
         - escrow_id = f'show_funding:{funding_goal_id}'
+          (NOTE: `escrow_id` defined here!!!)
         - `tags`.add
           f'swag::livestream.session:{session_id}.show_funding:{funding_goal_id}'
         - `extra_product_categories`.add
           'livestream-show'
 
     (END OF LOPPING AND IF BLOCK)
+- **Quick Sum up**: for buying ticket in show
+  - `tags` set:
+    - 'swag::livestream.session:{session_id}.gift
+    - 'swag::livestream.session:{session_id}.show_funding:{funding_goal_id}'
+  - `extra_product_categories`:
+    - 'livestream'
+    - 'livestream-show'
 
 - reduce `product_categories` to related-gift tag only:
   - filter list: if any of match:
@@ -84,17 +101,22 @@ func flow:
   - Add `extra_product_categories`
     (in ticket case: 'livestream', 'livestream-show')
 
-- !!!Insert `Gift` object `gift`
+- !!!Create `Gift`
   - id (new ObjectID)
   - sender
   - receiver
-  - product (GiftedProduct)
-    - id = product.id
-    - name = product.name
-    - categories=product_categories
+  - product = Gift.`GiftProduct`
+    - id         = product.id
+    - name       = product.name
+    - categories = product_categories
+      - livestream-show-ticket
+      - livestream
+      - livestream-show
   - cost (Diamond)
     - amount = product_price * amount
-  - metadata: count, exclusive, device, funding_goal_id
+  - metadata:
+    - count
+    - funding_goal_id
 
 - add `tags` set:
   - 'swag::gift:{`gift`.id}'
@@ -109,11 +131,48 @@ func flow:
 - Init Task chain and link task
   - chaining:
     - `swag.tasks.transfer`
-      Call wallet service
+      - **args**:
+        - transaction_id = 'gifts:gift-{gift.id}'
+        - from_user_id   = gift.sender.id
+        - to_user_id     = gift.receiver.id
+        - amount         = gift.cost.amount
+        - tags
+          - 'swag::livestream.session:{session["id"]}.gift'
+          - 'swag::livestream.session:{session["id"]}.show_funding:{funding_goal_id}'
+          - 'swag::gift:{gift.id}'
+          - 'swag::gift.product:{gift.product.id}'
+        - escrow_id = f'show_funding:{funding_goal_id}'
     - `save_gift_transaction`
-      Update Gift record of transaction related field
-  - link task:
-    - Send `gifts` signal with `gift.sent` sender
+      - args: gift_id
+  - link task: Send `gifts` signal with `gift.sent` sender
+
+### Task `transfer`
+
+- fetch User of sender & receiver
+
+- tags.add
+  - 'escrow::{wallet_id_b64}:show_funding:{funding_goal_id}' // wallet_id is receiver.wallet_id
+
+- because `escrow_id` and `to_account` and `from_account`
+  - tags.add
+    - 'escrow::{wallet_id_b64}:show_funding:{funding_goal_id}' (to_account is embedded in wallet_id_b64)
+  - to_account = None
+
+- Trigger Wallet task `transfer`
+  - args:
+    - from_account   = sender.wallet_id
+    - from_amount    = amount (price * amount),
+    - to_account     = None,
+    - to_amount      = amount (price * amount),
+    - forced         = False,
+    - tags
+      - 'swag::livestream.session:{session["id"]}.gift'
+      - 'swag::livestream.session:{session["id"]}.show_funding:{funding_goal_id}'
+      - 'swag::gift:{gift.id}'
+      - 'swag::gift.product:{gift.product.id}'
+      - 'escrow::{wallet_id_b64}:{escrow_id}'
+    - timestamp      = None,
+    - transaction_id = 'gifts:gift-{gift.id}'
 
 ### Task `save_gift_transaction`
 
@@ -121,13 +180,13 @@ func flow:
 
 - args:
   - `wallet_transaction_id` (received from parent task `transfer`)
+    = 'gifts:gift-{gift.id}'
   - `gift_id`
 
 - !!!Update `Gift` by id
-  - set 
-    - TIMESTAMPED `sent_at`
-    - TIMESTAMPED `cost.timestamp`
-    - `cost.wallet_transaction` = wallet_transaction_id
+  - `sent_at` = now
+  - `cost.timestamp` = now
+  - `cost.wallet_transaction` = 'gifts:gift-{gift.id}'
   
 ### Signal `gifts`: `gift.sent` Sender
 
@@ -137,18 +196,15 @@ Args:
 - sender_id          = gift.sender.id,
 - receiver_id        = gift.receiver.id,
 - product_id         = gift.product.id,
-- product_categories = product_categories,
-  RESULT
+- product_categories
   - `livestream-show-ticket`
   - `livestream`
   - `livestream-show`
 - cost_amount        = gift.cost.amount,
-- metadata           = gift.metadata,
-  RESULT
+- metadata
   - count
   - funding_goal_id
 - tags               = tags,
-  RESULT
   - `swag::livestream.session:{session["id"]}.gift`
   - `swag::livestream.session:{session["id"]}.show_funding:{funding_goal_id}`
   - `swag::gift:{gift.id}`
@@ -156,23 +212,26 @@ Args:
 
 Receivers:
 
-- track_gift_sent
+- add_to_chat_room **returned**
+- create_karaoke_goal **returned**
+- `track_gift_sent`
   Trigger Task `analytics.tasks.track`
 
-- notify_gift_sent
-  broadcast `gift.sent` event
+- `notify_gift_sent`
+  - targets:
+    - presence-notification@{sender_id}
+    - presence-notification@{receiver_id}
+    - presence-stream@{receiver_id}
+    - private-stream@{receiver_id}
+  - events: `gift.sent`
 
-- notify_stream_revenue_updated_from_gifts
-  (for LIVESTREAM_GIFT_TAG Gift)
-  notify `stream.revenue.updated` event to streamer channel
+- `notify_stream_revenue_updated_from_gifts`
+  - targets:
+    - private-stream@{user_id}
+    - presence-stream@{user_id}
+  - events: `stream.revenue.updated`
 
-- `add_to_chat_room`
-  (For Chat Gift only, returned)
-
-- `create_karaoke_goal`
-  (For karaoke goal, returned)
-
-- `update_show_funding_goal_progress`
+- !!!`update_show_funding_goal_progress`
   update goal's progress, breakdown, metadata.insert_ids
 
 ### `gift.sent` -> `notify_gift_sent`
@@ -227,15 +286,8 @@ Receivers:
     - `private-stream@{user_id}` (user_id is steamer)
     - `presence-stream@{user_id}` (user_id is steamer)
 
-### `gift.sent` -> `create_karaoke_goal`
-
-**SUMMARY**: create `KaraokeGoal` goal after receive karaoke gift.
 
 ### `gift.sent` -> `update_show_funding_goal_progress`
-
-- proceed only with 
-  - `metadata.funding_goal_id`
-  - cost_amount
 
 - Trigger task `increment_goal_progress` with
   - goal_id      = funding_goal_id
@@ -250,37 +302,46 @@ Receivers:
 
 (breakdown_id = sender's id)
 
-- fetch goal by
+- fetch and update goal (new=True)
   - goal_id (funding_goal_id)
-  - metadata.insert_ids array don't have _insert_id (gift_id)
+  - metadata__insert_ids__ne _insert_id (gift_id)
 - !!!Update goal:
-  - progress += amount (count)
-  - breakdown.{breakdown_id}.progress += amount
-  - breakdown.{breakdown_id}.cost += cost
-  - metadata.insert_ids append(_insert_id)
+  - inc__progress amount
+  - inc__breakdown__{breakdown_id}__progress amount
+  - inc__breakdown__{breakdown_id}__cost  cost
+  - push__metadata__insert_ids insert_id (gift_id)
 
 - Send `features.leaderboards` signal with sender `goal.progressed`
-  args:
+  **args**:
   - goal_id      = goal.id,
-  - _cls         = goal._cls,
+  - _cls         = `ShowFundingGoal`,
   - amount       = amount,
   - conditions   = goal.conditions,
+    - session_id
   - context      = goal.context,
+    - type                 = 'show-funding'
+    - perform_duration     = 60,
+    - session_id           = "681088cb95684fc0c6496546",
+    - hesitation_countdown = 30,
+    - ticket_product_id    = "livestream-show-ticket_134",
+    - ticket_product_type  = "earlybird",
+    - discount_percentage  = 33
   - progress     = goal.progress,
   - breakdown_id = breakdown_id,
-  - levels       = [{
-        'title': level.title,
-        'target': level.target,
-    } for level in goal.levels],
-  - metadata = goal.metadata,
+  - levels.0
+    - target
+    - title
+  - metadata = goal.metadata
+    - insert_ids
+    - user_id (streamer_id)
   - exp      = goal.exp,
 
   Receivers:
   - `track_goals`
     Trigger `analytics.tasks.track`
 
-  - `update_and_notify_session_karaoke_goal`
-    For KaraokeGoal, returned
+  - update_and_notify_session_karaoke_goal **returned**
+  - trigger_exclusive_goal_escrow_refund **returned**
 
   - `notify_goal_progress_updated`
     - event: `goal.progress.updated`
@@ -293,15 +354,91 @@ Receivers:
   - `trigger_goal_complete`
     Triggers goal.completed if a goal's level.target is met
 
-  - `notify_viewer_change_stream_for_show`
+  - `notify_viewer_change_stream_for_show` (**returned** if not ShowGoal)
     Notifies viewer to change stream if the funding goal he progressed has a show goal bind to it already.
     - event: `stream.authorized`
     - target: presence-stream-viewer@{streamer_id}.preview.{breakdown_id}
 
-  - `trigger_exclusive_goal_escrow_refund`
-    Trigger refund diamonds from escrow to viewers
-
   - `invalidate_cached_pusher_channel_data`
-    Invalidate cached private-user@streamer_id, private-streamer@streamer_id channel data
+    invalidate cached channels data then re-authorize:
+    - 'private-user@{streamer_id}'
+    - 'private-enc-user@{streamer_id}'
+    - 'private-stream@{streamer_id}'
+    - 'private-enc-stream@{streamer_id}'
 
 ---
+
+## Wallet Transfer callback
+
+Endpoint: [POST] `/notify/wallet/transaction`
+
+body:
+
+```json
+{
+    "transaction_id": "gifts:gift-{gift.id}",
+    "timestamp"     : "",
+    "tags"          : [
+        "swag::livestream.session:{session_id}.gift",
+        "swag::livestream.session:{session_id}.show_funding:{funding_goal_id}",
+        "swag::gift:{gift.id}",
+        "swag::gift.product:{gift.product.id}",
+    ],
+    "from_account"  : "",
+    "from_amount"   : "",
+    "to_account"    : null,
+    "to_amount"     : "",
+}
+```
+
+Send signal sender `transaction.created`
+
+Receivers:
+
+- update_order **returned**
+- `trigger_user_balance_updated`
+
+### `transaction.created` -> `trigger_user_balance_updated`
+
+- aggregate `to_user_metadata` if to_account and to_amount:
+  (in this case: to_account is None)
+
+- aggregate `from_user_metadata` if from_account and from_amount:
+  - fetch user by user_id
+  - vars:
+    - from_user_id
+    - from_user_wallet_id = user.wallet_id
+    - from_user_metadata:
+      - id
+      - username
+      - tags
+      - tagsv2
+      - level
+    
+- Send signal `user` with sender `balance.decremented`:
+  - **args**
+    - user_id
+    - user_wallet_id
+    - source_user_id (None)
+    - source_user_wallet_id (None)
+    - amount
+    - timestamp
+    - transaction_id
+      (`gifts:gift-{gift.id}`)
+    - tags
+      - "swag::livestream.session:{session_id}.gift",
+      - "swag::livestream.session:{session_id}.show_funding:{funding_goal_id}",
+      - "swag::gift:{gift.id}",
+      - "swag::gift.product:{gift.product.id}"
+      - 'escrow::{wallet_id_b64}:show_funding:{funding_goal_id}'
+  - Receivers:
+    - handle_bet_transaction_completions (borden.py) **returned**
+    - handle_bet_transaction_completions (giocogroup.py) **returned**
+    - handle_bet_transaction_completions (sic_bo.py) **returned**
+    - record_penalty_points_to_earnings **returned**
+    - progress_trigger_goals **returned**
+    - points_withdrawn **returned**
+    - `livestream_show_withdrawn`
+      - `notifications.tasks.record` with event `stream.show`
+    - fetch_user_balance_when_changed
+    - track_points_activity

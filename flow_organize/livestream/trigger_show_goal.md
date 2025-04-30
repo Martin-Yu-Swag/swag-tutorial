@@ -306,7 +306,7 @@ func `deactivate_goal` flow
 
 - fetch goal by goal_id
 - fetch session by goal.condition["session_id"]
-- IF following -> Task = escrow_out
+- IF following -> Task = `escrow_out`
   1. session.active = True
   2. session.status.preset == 'sd'
 - Trigger Task with args:
