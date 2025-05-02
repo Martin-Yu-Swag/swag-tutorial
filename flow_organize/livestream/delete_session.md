@@ -109,3 +109,23 @@ END of `deactivate_goals_in_session`
 - Send signal `features.leaderboards` with sender `goal.ended`
 
 ####
+
+---
+
+## Unsubscribe pusher channel
+
+- presence-enc-session@{session_id}
+- presence-enc-stream@{streamer_id}
+
+- event name = `member_removed`
+  -> state_changed_event = `channel_vacated`
+
+- Send Signal `ext.pusher` with Sender `channel_vacated`
+  - **args**
+    - channel
+    - user_id
+  - **Receivers**
+    - karaoke_control **returned**
+    - trigger_user_enter **returned**
+    - trigger_online **returned**
+    - track_channel_presence
