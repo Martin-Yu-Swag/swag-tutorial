@@ -45,16 +45,9 @@ Endpoint: [POST] `/notify/pusher`
       - title
     - metadata = goal.metadata
   - **Receivers**
+    - notify_show_goal_started **returned**
     - trigger_external_command **returned**
     - update_and_notify_session_karaoke_goal **returned**
-    - `notify_show_goal_started`
-      - targets:
-        - f'private-stream@{streamer_id}',
-        - f'presence-stream@{streamer_id}',
-        - f'private-user@{streamer_id}',
-      - events: `goal.started`
-    - `record_show_with_rtc`
-      - Execute byteplus Task `StartRecord`
+    - record_show_with_rtc **returned**
+    - notify_stream_authorized **returned**
     - `invalidate_cached_pusher_channel_data`
-    - `notify_stream_authorized`
-
