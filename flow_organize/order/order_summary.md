@@ -122,16 +122,16 @@ Signal trigger for canvas callbacks
     - trigger_capture
     - capture_charge
     - label_charge_with_order
-    - trigger_fulfill_order_diamond_pack
-    - fulfill_order_pass_product
+    - `trigger_fulfill_order_diamond_pack`
+    - `fulfill_order_pass_product`
     - provision_ezpay_invoice
     - send_payment_receipt
-    - update_last_purchase
+    - `update_last_purchase`
     - record_restrictions
     - track_transaction
-    - deposit_diamonds
-    - dispatch_order_payouts
-    - track_subscription_earnings
+    - `deposit_diamonds`
+    - `dispatch_order_payouts`
+    - `track_subscription_earnings`
     - fulfill_subscription_order
 
 #### `order.paid` -> `grant_passes`
@@ -266,4 +266,194 @@ Signal trigger for canvas callbacks
       (user_id in order.customer_id, payout_receivers)
   - event: `order.paid`
 
-#### `order.paid` -> `order_updated`
+#### `order.paid` -> `trigger_fulfill_order_diamond_pack`
+
+Trigger Task `fulfill_order_diamond_pack` with `order_id`
+
+- fetch `Order`
+  - filer:
+    - id = order_id
+    - customer__ne = None
+
+- fetch `User` by id = order.customer.id
+
+- items = [item.id for item in order.items if not item.product_id.startswith('payment-gateway-fee')]
+
+- fetch products `DiamondPackProduct` by __raw__
+  - 'skus.id': items
+
+- **returned** in following conditions:
+  - order.status_transitions.fulfilled
+  - order.status_transitions.canceled
+  - order.status_transitions.refunded
+
+- Trigger Task `transfer`
+  - transaction_id = shop.order:{order_id}
+  - to_user_id = user_id
+  - from_user_id = None
+  - amount = 
+    sum(
+      int(product.metadata.get('points', 0)) +
+      int(product.metadata.get('bonus', 0)) for product in products)
+  - tags:
+    - 'swag::user:{user.id}.purchase'
+    - 'swag::shop.order:{order.id}'
+
+- !!!Update Order (new = False)
+  - set__status = 'fulfilled'
+  - set__status_transitions__fulfilled = now
+
+- **returned** if order already fulfilled
+- Send Signal `order.fulfilled`
+  - **args**:
+    - order_id
+  - **Receivers**:
+    - `notify_order_status`
+
+#### `order.paid` -> `fulfill_order_pass_product`
+
+- fetch `Order` by id
+- Fetch products by
+  - _cls__in [UserProduct, PassProduct]
+  - id__in [item.product_id for item in order.items]
+
+- collect backpack_items:
+  - IF product._cls in PassProduct: yield
+    - user_id
+    - _cls = product.metadata['cls']
+    - exp = order.status_transitions.paid + product.metadata['ttl']
+    - duration
+    - metadata
+
+  - IF product._cls in UserProduct; yield
+    - user_id=order.customer.id,
+    - _cls= (FlixFeedPass/LivestreamPass),
+    - duration (varied by _cls),
+    - metadata=product.metadata,
+    - exp=exp
+
+- trigger Task `create_backpack_item` with `backpack_items`
+- Send Signal `order.fulfilled`
+
+???QUESTION: create_backpack_item 2 times
+- `fulfill_order_pass_product`
+  - this match product by _cls
+- `grant_passes`
+  - this match product by id
+
+#### `order.paid` -> `update_last_purchase`
+
+- !!!Update `User` by id (new=False)
+  - max__tagsv2__shop__last_purchased = now
+
+- IF user has previous purchase:
+  Send Signal `user.converted`
+  - **args**
+    - user_id
+    - order_id
+  - **Receivers**
+    - track_affiliate_spend
+    - track_user_converted
+    - `clear_user_cached_queryset`
+    - `trigger_permissions_updated`
+      - notify_user_permissions_updated
+        - event = 'user.permissions.updated'
+        - targets = `presence-user@{user_id}`
+    - `trigger_user_verified`
+
+##### `user.converted` -> `trigger_user_verified`
+
+- !!!Update `User`
+  - filter
+    - id
+    - kyc__dob__exists = False
+  - update:
+    - set__kyc__dob = constants.UNIX_EPOCH
+
+- Send signal `verified`
+  - **args**:
+    - source
+      - sender: user.converted
+    - user_id
+    - results:
+      - dob
+  - **receivers**:
+    - track_user_verified
+    - `trigger_configuration_reload`
+      - events: `configuration.updated`
+      - targets: presence-user@{user_id}
+
+#### `order.paid` -> `deposit_diamonds`
+
+- fetch `Order` by id
+
+- proceed with when
+  - order.payment._cls == VIPPurchase
+  - diamonds := order.metadata['diamonds']
+  - NO order.status_transitions.fulfilled
+  - NO order.status_transitions.canceled
+
+- Trigger Task transfer
+  - transaction_id = 'shop.order:{order_id}'
+  - to_user_id
+  - from_user_id = None
+  - amount = diamonds
+  - tags:
+    - 'swag::user:{order.customer.id}.purchase'
+    - 'swag::shop.order:{order.id}'
+
+- !!!Update `Order` (new=False)
+  - set__status='fulfilled'
+  - set__status_transitions__fulfilled=now
+
+- Send Signal `order.fulfilled`
+  - **args**:
+    - order_id
+  - **Receivers**:
+    - `notify_order_status`
+
+#### `order.paid` -> `dispatch_order_payouts`
+
+- fetch `Order` by id
+- loop idx, item through order.items:
+  - payouts := item.metadata['payouts]
+  - price
+  - loop user_id, payout_ratio through payouts.items()
+    - trigger Task transfer
+      - transaction_id = shop.order.payout:{order_id}.{index}-{user_id}
+      - from_user_id = None
+      - to_user_id = user_id
+      - amount = payout_amount.sub_units
+      - tags:
+        - shop.order:{order.id}
+        - 'shop.product.{product_cls}:{product_id}'
+
+#### `order.paid` -> `track_subscription_earnings`
+
+- fetch `Order` by
+  - id
+  - customer__ne=None
+  - items__product_cls=UserSubscriptionProduct
+
+- for item in order.items:
+  - continue unless
+    - user_id        := item.product_id,
+    - source_user_id := order.customer.id,
+    - transaction_id := order.id,
+    - total          := item.price.sub_units,
+    - currency       := order.payment.currency,
+    - timestamp      := order.payment.timestamp,
+  - Trigger Task `add_earning`
+    - user_id        = user_id,
+    - source_user_id = source_user_id,
+    - transaction_id = transaction_id,
+    - categories     = ['subscription'],
+    - total          = total,
+    - suffix         = {
+        'USD': 'USD',
+        'DIAMONDS': None,
+    }[currency.upper()],
+    - timestamp=timestamp,
+
+#### `order.paid` -> `fulfill_subscription_order`
+
