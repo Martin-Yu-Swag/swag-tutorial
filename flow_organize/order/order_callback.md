@@ -21,10 +21,10 @@ func `notify` flow:
     - timeout
 
 - Trigger signal `ext.gash` with sender status (eg. `success`)
-  args:
-  - kwargs = request.view_args
-  Receivers of success:
-  - `settle_payment`
+  - **args**:
+    - kwargs = request.view_args
+  - **Receivers** of success:
+    - `settle_payment`
 
 - parse redirect response from request.args['next]
 
@@ -89,7 +89,7 @@ Signal trigger for canvas callbacks
   - AMOUNT
   - money.Currency[CUID]
 
-- init payment = GashPurchase
+- init payment = `GashPurchase`
   - id = RRN
   - currency = price.currency.value
   - amount = price.sub_units
@@ -100,18 +100,18 @@ Signal trigger for canvas callbacks
     - AMOUNT = AMOUNT,
     - **kwargs,
 
-- !!!UPDATE and fetch order (new=False):
+- !!!UPDATE and fetch `Order` (new=False):
   - filter: id = COID
   - modify:
     - set__status = 'paid'
-    - set__status_transitions__paid = payment.timestamp
+    - set__status_transitions__paid = payment.timestamp (which is defaultly now)
     - set_payment=payment
 
 - Send signal `shop` with sender `order.paid`
+  - metadata = order.metadata.get('_task_')
   - **args**:
     - order_id    = order.id
     - customer_id = order.customer.id
-  - metadata = order.metadata.get('_task_')
   - **Receivers**:
     - `grant_passes`
     - `trigger_calculate_user_spendings`
@@ -133,6 +133,7 @@ Signal trigger for canvas callbacks
     - `dispatch_order_payouts`
     - `track_subscription_earnings`
     - fulfill_subscription_order
+      NOTE: User Subscription feature is deprecated currently
 
 #### `order.paid` -> `grant_passes`
 
@@ -289,9 +290,9 @@ Trigger Task `fulfill_order_diamond_pack` with `order_id`
 
 - Trigger Task `transfer`
   - transaction_id = shop.order:{order_id}
-  - to_user_id = user_id
-  - from_user_id = None
-  - amount = 
+  - to_user_id     = user_id
+  - from_user_id   = None
+  - amount         = 
     sum(
       int(product.metadata.get('points', 0)) +
       int(product.metadata.get('bonus', 0)) for product in products)
@@ -419,7 +420,7 @@ Trigger Task `fulfill_order_diamond_pack` with `order_id`
   - payouts := item.metadata['payouts]
   - price
   - loop user_id, payout_ratio through payouts.items()
-    - trigger Task transfer
+    - trigger Task `transfer`
       - transaction_id = shop.order.payout:{order_id}.{index}-{user_id}
       - from_user_id = None
       - to_user_id = user_id
