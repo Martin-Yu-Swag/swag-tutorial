@@ -135,7 +135,16 @@ def on_post_save(sender, document: db.Document, created: bool, **kwargs):
 
 ### Order fulfillment
 
-- ``
+NOTE:
+
+- `grant_passes` vs `fulfill_order_pass_product`
+  - 最一開始 `Prduct` 類型沒有分類，根據 id 決定 product 種類，然後依此建立個別 BackpackItem 的 type (see `grant_passes`)
+
+  - 後續定義 Product subtype (`DiamondPackProduct`, `UserProduct`, `PassProduct`)。
+    於是根據 `_cls` 決定 BackpackItem 的 type
+    (see `fulfill_order_pass_product`)
+  
+  - To sum up: `grant_passes` is legacy flow.
 
 ## Asset uploading
 

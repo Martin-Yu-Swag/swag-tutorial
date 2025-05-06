@@ -385,9 +385,42 @@ In MongoDB:
 > 如果在写入事务期间发生不可预见的事件（例如停电），则可以在系统重新启动时使用 **OpLog** 来重放关机前未刷新到磁盘的所有写入操作。
 > **OpLog** 具有幂等性，可以多次重试。
 
----
 
-## Common DB things
+### [MongoDB Official Document: Transactions](https://www.mongodb.com/docs/manual/core/transactions/#transactions)
+
+> In MongoDB, an operation on a **single document** is atomic. (eg. embeddedDocument update)
+
+> With **distributed transactions**, transactions can be used across multiple operations, collections, databases, documents, and shards.
+
+#### Transactions and Sessions
+
+- Transactions are associated with a **session**.
+- You can have at most one open transaction at a time for a session.
+- If a session ends and it has an open transaction, the transaction aborts.
+
+#### Read Concern/Write Concern/Read Preference
+
+Transactions & Read Preference
+
+- Operations in a transaction use the transaction-level read preference (`primary`).
+  -> All operations in a given transaction must route to the same member.
+
+Transactions and Read Concern
+
+- Operations in a transaction use the transaction-level read concern
+- Transaction Support read concern levels:
+  - "local"        -> Fast + Latest
+  - "available"    -> Fast + Latest
+  - "majority"     -> Fast + Safe
+  - "snapshot" -> Safe + Latest
+
+Transactions and Write Concern
+
+- `w: 1` returns acknowledgment after the commit has been applied to the primary
+- `w: "majority"` returns acknowledgment after the commit has been applied to a majority of voting members
+
+---
+Common DB things
 
 ### Queries
 
@@ -573,6 +606,77 @@ Disadvantages
 ### Data modeling
 
 ### What are some different types of queries that we use in our application?
+
+- [create()](https://docs.mongoengine.org/apireference.html#mongoengine.queryset.QuerySet.create)
+
+- [first()](https://docs.mongoengine.org/apireference.html#mongoengine.queryset.QuerySet.first)
+
+- [aggregate()](https://docs.mongoengine.org/apireference.html#mongoengine.queryset.QuerySet.aggregate)
+
+- [modify()](https://docs.mongoengine.org/apireference.html#mongoengine.queryset.QuerySet.modify)
+  - Update and return the updated document.
+
+- [update()](https://docs.mongoengine.org/apireference.html#mongoengine.queryset.QuerySet.update)
+  - Perform an atomic update on the fields matched by the query.
+  - `:returns` the number of updated documents
+
+- [update_one()](https://docs.mongoengine.org/apireference.html#mongoengine.queryset.QuerySet.update_one)
+  - Perform an atomic update on the fields of the **first document matched** by the query.
+
+- _get_collection()
+
+  - `_get_collection` python documents:
+
+  ```py
+  """
+  Return the PyMongo collection corresponding to this document.
+
+  Upon first call, this method:
+
+  1. Initializes a :class:`~pymongo.collection.Collection` corresponding
+      to this document.
+  2. Creates indexes defined in this document's :attr:`meta` dictionary.
+      This happens only if `auto_create_index` is True.
+  """
+  ```
+
+  - Use pymongo.Collection operation to gain performance (skip the process of initiation of Model instance),
+    but lose validation and model-related features.
+    see [StackOverflow discussion](https://stackoverflow.com/a/58243823/20307835).
+
+  - [pymongo `bulk_write()`](https://pymongo.readthedocs.io/en/stable/examples/bulk.html#mixed-bulk-write-operations)
+    > Supports executing mixed bulk write operations.
+      A batch of insert, update, and remove operations can be executed together using the bulk write operations API
+  
+  - [pymongo `find_one_and_update()`](https://pymongo.readthedocs.io/en/stable/api/pymongo/collection.html#pymongo.collection.Collection.find_one_and_update)
+    - Finds a single document and updates it, returning either the original or the updated document.
+    - options:
+      - return_document=ReturnDocument.AFTER
+  
+  - [pymongo `update_one()`](https://pymongo.readthedocs.io/en/stable/api/pymongo/collection.html#pymongo.collection.Collection.update_one)
+
+  - [pymongo `insert_one()`](https://pymongo.readthedocs.io/en/stable/api/pymongo/collection.html#pymongo.collection.Collection.insert_one)
+
+
+#### Note
+
+- Pymongo vs. MongoEngine
+  [reference quote:](https://stackoverflow.com/a/41323384/20307835)
+  > PyMongo returns dictionaries that need to have their keys referenced by string. 
+    MongoEngine allows you to define a schema via classes for your document data.
+    It will then map the documents into those classes for you and allow you to manipulate them.
+  
+- What is `SON`?
+  - SON: [Serialized Ocument Notation](https://pymongo.readthedocs.io/en/stable/api/bson/son.html#module-bson.son)
+  - `model.to_mongo()` return a SON object
+  - by `SON` python document:
+    > SON data
+      A subclass of dict that maintains ordering of keys and provides
+      a few extra niceties for dealing with SON. SON provides an API similar to collections.OrderedDict.
+  - `son.to_dict()`
+      > Convert a SON document to a normal Python dictionary instance.
+      This is trickier than just *dict(...)* because it needs to be recursive.
+
 
 ### Background asynchronous transport
 

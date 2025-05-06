@@ -530,15 +530,15 @@ HTTP 2 vs. HTTP 3
 
 **HTTP3**
 
-  - established through QUIC over UDP
-    - a transportation protocol
-    - improved performance, reduced latency, enhanced security, better handling of network fluctuations
+- established through `QUIC` over UDP
+  - a transportation protocol
+  - improved performance, reduced latency, enhanced security, better handling of network fluctuations
 
-  - UDP = user datagram protocol
+- UDP = user datagram protocol
 
-  - header compression (QPACK)
+- header compression (QPACK)
 
-  - connection ID
+- connection ID
 
 **HTTP over QUIC**
 
