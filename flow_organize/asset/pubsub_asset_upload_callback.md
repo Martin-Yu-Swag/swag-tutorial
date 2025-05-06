@@ -78,10 +78,10 @@ Task `analyze`
   - content_type='application/json'
 
 - ...If asset is `image/*`
-  - init asset.Artifact as source
+  - init `asset.Artifact` as source
     - label='SOURCE'
     - content_type='image/jpeg'
-  - init asset.Artifact as source_vips
+  - init `asset.Artifact` as source_vips
     - label='SOURCE_vips'
     - content_type='image/jpeg'
   - docker steps: 
@@ -93,7 +93,7 @@ Task `analyze`
 - ...ELIF asset is application/pdf
   (NOTE: 如果上傳影片，可 optionally 上傳版權說明 -> 通常是 pdf)
 
-  - Init asset.Artifact as artifact
+  - Init `asset.Artifact` as artifact
     - label='METADATA'
     - content_type='application/yaml'
   - docker steps:

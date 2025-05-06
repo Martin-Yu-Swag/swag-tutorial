@@ -1,8 +1,8 @@
-# Create Post Summary
+# Create Post
 
-## POST /posts
+Endpoint: [POST] `/posts`
 
-- payload
+Body
 
 ```json
 {
@@ -10,7 +10,7 @@
     "caption": "",
     "text": "",
     "categories": [""],
-    "unlock_price": 0,
+    "unlockPrice": 0,
     "assetIds": [
         "id"
     ],
@@ -20,21 +20,201 @@
 }
 ```
 
-- init `Post.asset` with `id`, `content_type`, `duration` (`metadata.ffprobe.format.duration`)
-- Create Post
-- Send signal `post.created` sender, trigger only receiver `claim_post_assets`
-- Return Post response
+- init `Post.asset` as assets
+  - id
+  - content_type
+  - duration = asset.metadata["ffprobe"]["format"]["duration"]
+
+- Create `Post` as post
+  - sender = g.user.id
+  - caption = Message.Caption(text=caption) or None
+  - nbf
+  - exp = nbf + ttl
+  - pricing = Message.Pricing(unlock_price)
+  - assets = assets
+  - hashtags.*
+    (parsed from caption)
+  - tags.*
+    - *user_tags
+    - flix (if all assets are video)
+    - category:*
+  - includes.*
+  - metadata = Post.Metadata(ttl)
+
+- Send Signal `post.created`
+  - **args**
+    - post_id
+    - sender_id
+    - asset_ids
+  - **receivers**
+    - `claim_post_assets`
 
 NOTE:
 
-Define in Message Model, if object is created, then send `created` signal sender
+- Define in Message Model, if object is created, then send `created` signal sender
+  - **args**
+    - message_id
+  - **Receivers**
+    - track_message_status
+    - `trigger_draft_completed`
 
-Receivers
+## `post.created` -> `claim_post_assets`
 
-- `track_message_status`: trigger `analytics.tasks.track` task
-- `trigger_draft_completed`
+- for idx, asset in enumerate(asset_ids)
+  - trigger Task `claim_asset`
+    - claim_id = 'message-{message_id}:{index}'
+    - asset_id
 
-### `trigger_draft_completed`
+**claim_asset**
+
+- !!!Update asset by id (new=True)
+  - unset__exp = True
+  - __raw__
+    - $set: Asset._claims.{claim_id} = now
+
+- Send signal `asset.claimed`
+  - **args**
+    - asset_id
+    - owner_id
+    - content_type
+    - content_length
+    - metadata
+    - uri
+    - claim_id = 'message-{message_id}:{index}'
+    - claim_time = now
+    - claim_metadata = None
+  - **receivers**
+    - track **returned**
+    - trigger_generate_thumbnail_artifact **returned**
+    - cleanup_previous_assets **returned**
+    <!-- Above are for user_picture or user_background -->
+    - copy_aup_to_assets_artifacts **returned** for message_aup
+    - track_asset_events
+    - [`trigger_encode_message`](./create_post_encode_image.md)
+    - [`trigger_encode_gcp_transcoder`](./create_post_trigger_encode_gcp_transcoder.md)
+    - [update_message_asset_metadata](#assetclaimed---update_message_asset_metadata)
+    - [update_message_artifacts](#assetclaimed---update_message_artifacts)
+
+### `asset.claimed` -> `update_message_asset_metadata`
+
+- fetch Asset by id
+
+- init `Message.Asset` as _asset
+  - id           = asset.id
+  - content_type = asset.content_type
+  - duration     = asset.metadata[ffprobe][format][duration]
+
+- !!!Update `Message` with UpdateOne
+  - _id: message_id (parsed from claim_id)
+  - array_filter:
+    asset.id = _asset.id
+  - `$set`:
+    - `assets.asset.{field}`
+      for field , value in _asset.to_mongo().items()
+      (if value)
+
+### `asset.claimed` -> `update_message_artifacts`
+
+**SUMMARY**: copy message artifacts from asset artifacts
+- sd.jpg
+- sd-preview.jpg
+- sd.mp4
+- sd-preview.mp4
+
+- ARTIFACT_LABELS:
+  - "thumbnail"
+  - "thumbnail-sd-clear-watermarked-h264"
+  - "thumbnail-blurred"
+  - "thumbnail-sd-blurred-watermarked-h264"
+  - "trailer"
+  - "trailer-10s-sd-clear-watermarked-h264"
+  - "trailer-blurred"
+  - "trailer-10s-sd-blurred-watermarked-h264"
+
+- fetch `Asset` by id
+
+- for message_claim in asset._claims:
+  - parse message_id from claim_id
+  - for `dest`, [labels] in SOURCES:
+    `sd.jpg`        , ["thumbnail"        , "thumbnail-sd-clear-watermarked-h264"]
+    `sd-preview.jpg`, ["thumbnail-blurred", "thumbnail-sd-blurred-watermarked-h264"]
+    `sd.mp4'       `, ["trailer"          , "trailer-10s-sd-clear-watermarked-h264"]
+    `sd-preview.mp4`, ["trailer-blurred"  , "trailer-10s-sd-blurred-watermarked-h264"]
+    - proceed with asset.artifacts.[label] exist
+    - trigger task `copy`
+      - asset_id
+      - label     = (one of exist labels)
+      - dest      = gs://asia.public.swag.live/messages/{message_id}/{asset_id}/{destination}
+      - overwrite = False
+
+---
+
+## `created` -> `trigger_draft_completed`
+
+NOTE: 這裏目前好像不會觸發 (or 條件不符)
+
+- Filter `Message`
+  - or
+    - assets__metadata__source__exists = True
+    - tags                             = "draft"
+
+- Trigger Task `creator_approve_message`
+  - message_id
+
+### `creator_approve_message`
+
+- !!!Update `Message` by id
+  - pull__tags = "draft"
+
+- Send signal `draft.completed`
+  - **args**: message_id
+  - **receivers**:
+    - track_message_status
+    - `update_message_status`
+
+#### `draft.completed` -> `update_message_status`
+
+- !!!Update `Messages` (new = True)
+  - filters:
+    - id
+    - status_transitions__draft_completed      = None
+    - status_transitions__draft_completed__lte = now
+  - modify
+    - set__status_transitions__draft_completed = now
+    - unset__status_transitions__draft_reason
+
+- Send Signal `status.updated`
+  - **args**
+    - user_id
+    - message_id
+    - status         = "draft.completed"
+    - timestamp      = now
+    - reason         = None
+    - current_status = list
+      - `draft.completed`
+      - int(now)
+  - **receiver**
+    - generate_creator_outbox_feed **returned**
+    - send_session_voice_message **returned**
+    - add_to_auto_voice **returned**
+    - add_to_auto_message **returned**
+    - disable_voice_message_on_review_failed **returned**
+    - submit_message_for_review **returned**
+    - trigger_draft_started **returned**
+    - trigger_draft_completed **returned**
+    - track_message_sent **returned**
+    - `start_message_delivery`
+    - `notify_message_status_updated`
+
+
+
+
+
+
+
+
+
+## `created` -> `trigger_draft_completed`
 
 - Skip auto approving for messages with `assets.metadata.source` exist.
 - trigger `creator_approve_message` Task
@@ -312,228 +492,4 @@ Receiver `submit_message_for_review` (proceed only with `delivery.completed`, re
 Receiver `start_message_delivery` (not required status, returned)
 
 END OF SIGNAL `message.processing.started` -> `processing.started` -> `status.updated`
-
----
-
-## Upload Callback `/notify/googlecloud/pubsub`
-
-- Parse related field from payload
-  - subscription
-  - message.messageId
-  - message.publishTime
-  - message.attributes
-  - message.data
-
-- Send signal with subscription sender and args:
-  - messageId
-  - publishTime
-  - attributes
-  - data
-
-Receivers:
-
-- `handle_asset_quarantine_events_from_google_cloud_storage`
-  (for object PubSub from quarantine bucket, returned)
-
-- `handle_artifact_events_from_google_cloud_storage`
-
-- `handle_events_from_google_cloud_transcoder`
-
-### subscription `assets` -> handle_artifact_events_from_google_cloud_storage
-
-- parse required data
-  - attributes.eventType
-  - attributes.bucketId
-  - attributes.objectId
-  - data.contentType
-
-- proceed only when
-  - bucketId match re_ARTIFACTS_BUCKET
-  - objectId match Paths.artifact (asset_id,label)
-
-- fetch `asset` by asset_id
-
-- init asset.`Artifact`
-  - label
-  - content_type
-  - content_md5 (data.md5Hash)
-  - statuses (Asset.Artifact.Statuses(uploaded=now))
-
-- !!!Update asset:
-  - set artifacts.[label] = init artifact
-
-- Send signal `artifact.uploaded` sender with
-  - asset_id
-  - owner_id
-  - label
-  - content_type
-
-Receivers:
-
-- `approve_quarantined_asset_via_metadata` (only for METADATA artifact, returned)
-- `notify`
-- `trigger_generate_artifacts`: generate thumbnail and trailer from uploaded entrypoint artifact (`_thumbnail`, `_trailer`)
-- `update_message_artifacts`: after artifact upload, copy to message public storage dir based on asset's claims
-- `copy_to_artifact_to_public`
-- `trigger_sync_message_artifacts_to_v3`
-
-#### `artifact.uploaded` -> trigger_generate_artifacts
-
-SUMMARY: Generate thumbnail and trailer from uploaded entrypoint artifact
-
-- proceed only when label in (`_thumbnail`, `_trailer`)
-  NOTE: `_thumbnail`, `_trailer` is derived from API endpoint `swag/features/assets/endpoints.py::upload_artifact`
-
-- Trigger following task according to the label:
-  - generate_thumbnail_artifact
-  - generate_trailer_artifact
-
-**generate_thumbnail_artifact**
-
-- Generate `thumbnail` and `thumbnail-blurred` image from source `_thumbnail` and upload with Docker flow
-
-**generate_trailer_artifact**
-
-- Generate `trailer` and `trailer-blurred` video from source `_trailer` and upload with Docker flow
-
-#### `artifact.uploaded` -> update_message_artifacts
-
-SUMMARY: after artifact upload, copy to message public storage based on asset's claims
-
-- proceed with following label (label (destination)):
-  - thumbnail (sd.jpg)
-  - thumbnail-sd-clear-watermarked-h264 (sd.jpg)
-  - thumbnail-blurred (sd-preview.jpg)
-  - thumbnail-sd-blurred-watermarked-h264 (sd-preview.jpg)
-  - trailer (sd.mp4 )
-  - trailer-10s-sd-clear-watermarked-h264 (sd.mp4 )
-  - trailer-blurred (sd-preview.mp4)
-  - trailer-10s-sd-blurred-watermarked-h264 (sd-preview.mp4)
-
-- fetch Asset by asset_id
-
-- loop message_id through asset._claims (Claims.message):
-  - ...IF label in aforementioned & posses `asset.artifact[label]`
-    - re-write to `gs://asia.public.swag.live/messages/{message_id}/{asset_id}/{destination}`
-
-#### `artifact.uploaded` -> trigger_sync_message_artifacts_to_v3
-
-SUMMARY: rewrite thumbnail & trailer labeled artifact to bucket `asia.public.swag.live`:
-
-- `messages_v3/{message_id}/{asset_id}/poster.js`
-- `messages_v3/{message_id}/{asset_id}/trailer.mp4`
-
-- Trigger Task `sync_message_artifacts_to_v3` with
-  - asset_id
-  - label
-
-In `sync_message_artifacts_to_v3`
-
-- proceed with one of labels:
-  - `thumbnail` -> target = `poster.jpg`
-  - `trailer` -> target = `trailer.mp4`
-
-- Fetch asset by asset_id
-
-- Init asset.artifacts[label]
-
-- looping through `asset._claims` to find matched `Claims.message`:
-  - parse message_id from claim
-  - rewrite to `asia.public.swag.live::messages_v3/{message_id}/{asset_id}/{target}`
-
-### subscription `encode-message-results` -> handle_events_from_google_cloud_transcoder
-
-- with args:
-  - attributes
-  - data
-
-- parse required fields:
-  - event = attributes.event (`completed` / `fail`)
-  - message_id = attributes.message_id
-  - asset_id = attributes.asset_id
-
-- Sending `features.asset` signal with sender `message.processing.completed`
-  Receivers:
-  - update_message_asset_status
-
-#### `message.processing.completed` -> update_message_asset_status
-
-- !!!Update `Message.asset.{asset_id}.status_transitions.processing_completed` = now
-
-- IF ALL message.asset is processing completed
-  -> send `features.message` signal with sender `processing.completed`
-  Receivers:
-  - track_message_status: Trigger Task `analytics.tasks.track` 
-  - update_message_status
-    - !!!Update: TIMESTAMPED `Message.status_transitions.processing_completed`
-    - Trigger `status.updated`
-
----
-
-## Overview
-
-Message status change
-
-1. When create post, trigger `on_post_save` signal
-  -> trigger following `update_message_status`
-  -> TIMESTAMPED `status_transitions.draft_completed`
-
-2. When send `asset.claimed` signal
-  -> `trigger_encode_gcp_transcoder`
-  -> send `message.processing.started` signal
-  -> receiver `update_message_asset_status`
-  -> TIMESTAMPED `assets.$[asset].status_transitions.processing`
-  -> send following `processing.started` (If is first asset enter processing)
-  -> receiver `update_message_status`
-  -> TIMESTAMPED `status_transitions.processing_started`
-
-(Asset status change)
-3. When receive bucket OBJECT_FINALIZE notify callback
-  -> In `handle_artifact_events_from_google_cloud_storage`
-  -> TIMESTAMPED `assets.artifacts.[label].statuses.uploaded`
-
-4. When receive bucket OBJECT_FINALIZE notify callback
-  -> In `handle_events_from_google_cloud_transcoder`, trigger `message.processing.completed`
-  -> In `update_message_asset_status`
-  -> TIMESTAMPED `message.asset.[asset_id].status_transitions.processing_completed`
-
-5. After `update_message_asset_status`, if "All" message's artifacts are status processing_completed
-  -> Trigger message signal `processing_completed`
-  -> TIMESTAMPED `status_transitions.processing_completed`
-
----
-
-Concept of idempotent:
-
-- Update Post.Asset.[id,content_type,duration] in several part?
-  - create_post
-  - update_message_asset_metadata
-
----
-
-If Asset video > 3 min:
-  - create `trailer` Artifact
-  - create `trailer-blurred` Artifact
-else
-  - create `SOURCE-blurred` Artifact
-
----
-
-Quick note:
-
-目前的 voice-related service:
-- 個人私訊 
-- 直播結束後，直播主群發 voice message (`create_voice_message`)
-
----
-
-Question:
-
-How does `poster.jpg` thumbnail, `trailer.mp4` create?
-
-A: After artifact uploaded, pubsub callback trigger `handle_artifact_events_from_google_cloud_storage` and further ``artifact_uploaded`.
-
-In `trigger_sync_message_artifacts_to_v3`, for artifact "thumbnail" and "trailer", rewrite to `asia.public.swag.live::messages_v3/{message_id}/{asset_id}/{target}`, where message_id is parsed from `asset._claims`.
-
----
 

@@ -1,5 +1,10 @@
 # PubSub Artifact Upload Callback
 
+labels involved:
+
+- METADATA
+- SOURCE_vips
+
 endpoint: [POST] `/notify/googlecloud/pubsub`
 
 Body
