@@ -6,7 +6,38 @@ End point: [POST] `/sessions`
 
 func `upsert_livestream_session` flow:
 
+A. for brand new Session
+
+- execute `activate_session`
+  - **args**
+    - session_id = ObjectId()
+    - user_id
+    - title
+    - tags = []
+  - !!!Create `Session` through upsert
+    - set_on_insert
+      - id
+      - user
+      - statuses__created = now
+      - pricing = Session.SessionPricing(default)
+      - status__preset = "preview"
+      - title = tile
+      - tags.*
+        - yield user.tags with
+          - "country:*"
+          - "hashtag:"
+          - "badge:new"
+        - "device:lovense"
+          (IF attach_lovense_online_device)
+    - unset__statuses__ended = True
+    - set__active            = True
+        
+- Send signal `session.started`
+
+---
+
 - init session_id (ObjectId())
+
 - fetch doc from `Source` model:
   - filter: user = g.user_id
   - aggregate:
