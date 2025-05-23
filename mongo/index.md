@@ -14,7 +14,7 @@ When create Partial index, options `partialFilterExpression` for specifying foll
 
 - $eq
 - $exists: true
-- $gt, $gte, $lt, $lte
+- `$gt`, `$gte`, `$lt`, `$lte`
 - $type
 - $and
 - $or
